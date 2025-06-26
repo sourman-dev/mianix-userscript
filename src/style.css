@@ -1,0 +1,4 @@
+@import url("https://cdn.jsdelivr.net/npm/primeicons@7.0.0/primeicons.css");
+@import "tailwindcss";
+@import "tailwindcss-primeui";
+@custom-variant dark (&:where(.p-dark, .p-dark *));

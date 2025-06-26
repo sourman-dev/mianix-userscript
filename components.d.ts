@@ -10,6 +10,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     CharacterAvatar: typeof import('./src/components/character_cards/CharacterAvatar.vue')['default']
     ChatScreen: typeof import('./src/components/chat_screen/ChatScreen.vue')['default']
+    DeleteConfirm: typeof import('./src/components/DeleteConfirm.vue')['default']
     Index: typeof import('./src/components/character_cards/Index.vue')['default']
     LLMProviderSelect: typeof import('./src/components/common/LLMProviderSelect.vue')['default']
     MainLayout: typeof import('./src/components/MainLayout.vue')['default']
