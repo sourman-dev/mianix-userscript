@@ -37,6 +37,7 @@
                   <div class="flex gap-2">
                       <SaveButton ref="saveButton2" @click="handleSave('original')" />
                       <Button severity="help" label="Translate" icon="pi pi-language" @click="handleTranslate" :loading="isTranslating" :disabled="!isReadyTranslate" />
+                      <LLMProviderSelect severity="warn"/>
                   </div>
               </div>
 
@@ -71,6 +72,7 @@ import { SCREENS } from '@/constants';
 import { db, CharacterCard, LLMModel } from '@/db';
 import type { CharacterCardData } from '@/types/character';
 import SaveButton from '@/components/common/SaveButton.vue';
+import LLMProviderSelect from '@/components/common/LLMProviderSelect.vue';
 import { storeToRefs } from 'pinia';
 import { sendOpenAiRequestStream, OpenAIOptions } from '@/utils/llm';
 
@@ -238,10 +240,10 @@ const handleSave = async (type: 'original' | 'translated') => {
         const updatedTranslated = JSON.parse(JSON.stringify(character.value.dataTranslated || {}));
         updateNestedValue(updatedTranslated, field, valueToSave);
 
-        await db.CharacterCards.updateOne(
-            { id: characterId },
-            { $set: { dataTranslated: updatedTranslated } }
-        );
+        db.CharacterCards.updateOne(
+        { id: characterId },
+        { $set: { dataTranslated: updatedTranslated } }
+      );
         
         if (!character.value.dataTranslated) character.value.dataTranslated = {};
         updateNestedValue(character.value.dataTranslated, field, valueToSave);

@@ -19,7 +19,7 @@ export async function sendOpenAiRequest(
   onChunk?: (chunk: string) => void
 ): Promise<string | void> {
   try {
-    const isStreaming = true;
+    const isStreaming = options.stream === true && onChunk !== undefined;
     const requestData = { ...options.data, stream: isStreaming };
     
     const apiURL = `${options.baseURL}chat/completions`;

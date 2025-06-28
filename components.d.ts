@@ -13,12 +13,15 @@ declare module 'vue' {
     DeleteConfirm: typeof import('./src/components/DeleteConfirm.vue')['default']
     Index: typeof import('./src/components/character_cards/Index.vue')['default']
     LLMProviderSelect: typeof import('./src/components/common/LLMProviderSelect.vue')['default']
+    LoadingScreen: typeof import('./src/components/common/LoadingScreen.vue')['default']
     MainLayout: typeof import('./src/components/MainLayout.vue')['default']
+    MessageButtons: typeof import('./src/components/chat_screen/MessageButtons.vue')['default']
     Modal: typeof import('./src/components/llm_models/Modal.vue')['default']
     ModalImport: typeof import('./src/components/character_cards/ModalImport.vue')['default']
     NavConfig: typeof import('./src/components/NavConfig.vue')['default']
     PresetConfig: typeof import('./src/components/PresetConfig.vue')['default']
     SaveButton: typeof import('./src/components/common/SaveButton.vue')['default']
+    SplitButton: typeof import('primevue/splitbutton')['default']
     Translate: typeof import('./src/components/character_cards/Translate.vue')['default']
   }
   export interface GlobalDirectives {

@@ -68,6 +68,124 @@ export class CharacterCard {
     })?.file;
   }
 }
+
+export interface ParsedResponse {
+    regexResult?: string;
+    nextPrompts?: string[];
+    compressedContent?: string;
+  }
+
+export type DialogueMessageType = {
+  role: "user" | "assistant" | "system" | "sample";
+  content: string;
+  parsedContent?: ParsedResponse;
+  id: string;
+  dialogueId: string;
+  createdAt: number;
+}
+export type DialogType = {
+  id: string;
+  createdAt: number;
+  // messages?: DialogueMessageType[];
+  llmOptions: DialogueOptions;
+}
+export interface DialogueOptions {
+  temperature?: number;
+  maxTokens?: number;
+  streaming?: boolean;
+  contextWindow?: number;
+}
+
+export type UserProfileType = {
+  id: string;
+  name: string; // Tên hiển thị, sẽ thay thế {{user}}
+  
+  // Các thuộc tính mô tả để đưa vào prompt
+  appearance?: string; // "Một người đàn ông cao lớn với mái tóc đen và đôi mắt nâu."
+  personality?: string; // "Tính cách trầm lặng, hay quan sát, nhưng rất quyết đoán."
+  background?: string;  // "Là một cựu binh, đang tìm kiếm sự bình yên ở thành phố này."
+  
+  // Các thuộc tính trạng thái động
+  currentStatus?: string; // "Đang cảm thấy mệt mỏi sau một ngày dài."
+  inventory?: string[];   // ["Một chiếc chìa khóa cũ", "Bức ảnh mờ"]
+  createdAt: number;
+}
+
+export class DialogueMessage {
+  role: "user" | "assistant" | "system" | "sample";
+  content: string;
+  parsedContent?: ParsedResponse;
+  id: string;
+  dialogueId: string;
+  createdAt: number;
+  constructor(data: DialogueMessageType) {
+    this.role = data.role;
+    this.content = data.content;
+    this.parsedContent = data.parsedContent;
+    this.id = data.id;
+    this.dialogueId = data.dialogueId;
+    this.createdAt = data.createdAt;
+  }
+}
+
+export class Dialogue {
+  id: string;
+  createdAt: number;
+  // messages?: DialogueMessageType[];
+  llmOptions: DialogueOptions;
+  constructor(data: DialogType) {
+    this.id = data.id;
+    this.createdAt = data.createdAt;
+    // this.messages = data.messages || [];
+    this.llmOptions = data.llmOptions;
+  }
+}
+
+export class UserProfile {
+  id: string;
+  name: string;
+  appearance?: string;
+  personality?: string;
+  background?: string;
+  currentStatus?: string;
+  inventory?: string[];
+  createdAt: number;
+  constructor(data: UserProfileType) {
+    this.id = data.id;
+    this.name = data.name;
+    this.appearance = data.appearance;
+    this.personality = data.personality;
+    this.background = data.background;
+    this.currentStatus = data.currentStatus;
+    this.inventory = data.inventory;
+    this.createdAt = data.createdAt;
+  }
+}
+
+const UserProfiles = new Collection<UserProfileType>({
+  name: "User_Profiles",
+  reactivity: vueReactivityAdapter,
+  persistence: createMonkeyAdapter("User_Profiles"),
+  primaryKeyGenerator: () => crypto.randomUUID(),
+  transform: (item) => new UserProfile(item),
+});
+
+const DialogueMessages = new Collection<DialogueMessageType>({
+  name: "Dialogue_Messages",
+  reactivity: vueReactivityAdapter,
+  persistence: createIndexedDBAdapter("Dialogue_Messages"),
+  primaryKeyGenerator: () => crypto.randomUUID(),
+  transform: (item) => new DialogueMessage(item),
+});
+
+const Dialogues = new Collection<DialogType>({
+  name: "Dialogues",
+  reactivity: vueReactivityAdapter,
+  persistence: createIndexedDBAdapter("Dialogues"),
+  // primaryKeyGenerator: () => crypto.randomUUID(),
+  transform: (item) => new Dialogue(item),
+});
+
 const Storage = new Collection<StorageType>({
   name: "Storage",
   reactivity: vueReactivityAdapter,
@@ -87,8 +205,24 @@ const LLMModels = new Collection<LLMModel>({
   primaryKeyGenerator: () => crypto.randomUUID(),
 });
 
+if(UserProfiles.find().count() === 0) {
+  UserProfiles.insert({
+    id: crypto.randomUUID(),
+    name: "Roger",
+    appearance: "Một người đàn ông cao lớn với mái tóc đen và đôi mắt nâu.",
+    personality: "Tính cách trầm lặng, hay quan sát, nhưng rất quyết đoán.",
+    background: "Là một cựu binh, đang tìm kiếm sự bình yên ở thành phố này.",
+    currentStatus: "Đang cảm thấy mệt mỏi sau một ngày dài.",
+    inventory: ["Một chiếc chìa khóa cũ", "Bức ảnh mờ"],
+    createdAt: Date.now(),
+  })
+}
+
 export const db = {
   CharacterCards,
   LLMModels,
   Storage,
+  DialogueMessages,
+  Dialogues,
+  UserProfiles
 };

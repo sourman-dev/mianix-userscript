@@ -62,8 +62,9 @@ import { textTruncate } from '@/utils/common';
 import { writeCharacterToPng } from '@/utils/character-parser';
 import { useDeleteConfirm } from '@/composables/useDeleteConfirm'
 import { Character } from '@/newDb/Character';
-import { db, CharacterCard } from '@/db';
+import { db, CharacterCard, Dialogue, UserProfile } from '@/db';
 import dayjs from 'dayjs';
+import { adaptText } from '@/utils/msg-process';
 const useScreen = useScreenStore();
 const useModal = useModalStore();
 const { confirmDelete } = useDeleteConfirm();
@@ -77,6 +78,8 @@ async function handleDelete(card: CharacterCard) {
     onConfirm: async () => {
       db.CharacterCards.removeOne({ id: card.id });
       db.Storage.removeOne({ id: card.id });
+      db.Dialogues.removeOne({ id: card.id });
+      db.DialogueMessages.removeMany({ dialogueId: card.id });
       // await loadCharacterCards();
     }
   })
@@ -137,8 +140,24 @@ const handleCharacterExport = async (id: string) => {
   }
 }
 
-const handleToChat = (id: string) => {
-  useScreen.setScreen(SCREENS.CHAT, { id })
+const handleToChat = (characterId: string) => {
+  const characterCard = db.CharacterCards.findOne({ id: characterId }) as CharacterCard;
+  const currentDialogue = db.Dialogues.findOne({ id: characterId }) as Dialogue;
+  const currentProfile = db.UserProfiles.findOne({}) as UserProfile;
+  if (!currentDialogue) {
+    db.Dialogues.insert({ id: characterId, createdAt: Date.now(), llmOptions: { temperature: 0.7, maxTokens: 1000, contextWindow: 4000 } })
+    characterCard.getData()
+    const greeting = adaptText(characterCard.getGreeting(), currentProfile.name, characterCard.data.name);
+    console.log(greeting, currentProfile.name)
+    db.DialogueMessages.insert({
+      role: 'assistant',
+      content: greeting,
+      id: characterId,
+      createdAt: Date.now(),
+      dialogueId: characterId,
+    })
+  }
+  useScreen.setScreen(SCREENS.CHAT, { id: characterId })
 }
 
 watchEffect((onCleanup) => {

@@ -31,14 +31,6 @@ export function fileSizeHuman(size: number){
   return `${size.toFixed(2)} ${units[i]}`;
 }
 
-export function adaptText(text: string, username?: string, charName?: string): string {
-  let parsed = text.replace(/<br\s*\/?>/gi, "\n"); // Chuyển đổi <br> thành dòng mới
-  const userReplacement = username ?? 'Tôi';
-  parsed = parsed.replace(/{{user}}/g, userReplacement); // Thay thế placeholder {{user}}
-  parsed = parsed.replace(/{{char}}/g, charName ?? ""); // Thay thế placeholder {{char}}
-  return parsed;
-}
-
 export function clearHtmlTag(text: string): string {
   return text.replace(/<\/?[^>]+(>|$)/g, "");
 }
