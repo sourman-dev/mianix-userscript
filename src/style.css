@@ -1,4 +1,30 @@
+/* src/style.css */
+
+/* Import các thư viện bên ngoài */
 @import url("https://cdn.jsdelivr.net/npm/primeicons@7.0.0/primeicons.css");
 @import "tailwindcss";
-@import "tailwindcss-primeui";
+@import "tailwindcss-primeui"; /* Giữ lại nếu bạn dùng plugin này */
+
+/* Định nghĩa các custom-variant */
 @custom-variant dark (&:where(.p-dark, .p-dark *));
+
+/* Cuối cùng là các custom-variant */
+@custom-variant dark (&:where(.p-dark, .p-dark *));
+
+/* BẠN KHÔNG CẦN @theme nữa khi đã có safelist */
+/* Bạn có thể giữ lại các @apply ở đây nếu muốn */
+.message-buttons {
+    @apply absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-1 bg-gray-800/50 backdrop-blur-sm p-1 rounded-lg;
+}
+.user-buttons {
+    @apply -left-2 sm:-left-12;
+}
+.assistant-buttons {
+    @apply -right-2 sm:-right-12;
+}
+.prose {
+    line-height: 1.75;
+}
+.prose p {
+    margin-bottom: 0;
+}

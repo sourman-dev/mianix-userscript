@@ -1,10 +1,10 @@
 <template>
-  <SplitButton icon="pi pi-prime" :model="llm_providers" size="small"></SplitButton>
+  <SplitButton v-if="!noDisplaySelected" :label="selectedName" :buttonProps="buttonProps" :model="llm_providers" size="small"></SplitButton>
+  <SplitButton v-else :buttonProps="buttonProps" :model="llm_providers" size="small"></SplitButton>
 </template>
 
 <script setup lang="ts">
-import { db, LLMModel } from "@/db";
-import { MenuItem } from "primevue/menuitem";
+import { db, LLMModel } from "@/db";  
 import { ref, onMounted, watch } from "vue";
 
 const props = defineProps({
@@ -12,12 +12,21 @@ const props = defineProps({
     type: String,
     default: null,
   },
+  noDisplaySelected: {
+    type: Boolean,
+    default: true,
+  },
+  buttonProps: {
+    type: Object,
+    default: () => ({}),
+  }
 });
 
 const emit = defineEmits(['update:modelValue']);
+const selectedName = ref('');
 
 const selectedProviderId = ref(props.modelValue);
-const llm_providers = ref<MenuItem[]>([]);
+const llm_providers = ref(<{ label: string | undefined; icon: string; command: () => void; }[]>[]);
 
 watch(selectedProviderId, (newValue) => {
   emit('update:modelValue', newValue);
@@ -50,6 +59,9 @@ function loadData() {
       loadData()
     }
   }));
+  if(!props.noDisplaySelected){
+    selectedName.value = llm_providers.value.find((provider) => provider.icon === 'pi pi-check')?.label || '';
+  }
 }
 
 onMounted(async () => {

@@ -116,3 +116,26 @@ export function mergeObjects<T extends object, U extends object>(obj1: T, obj2: 
 
   return deepMerge(obj1, obj2) as T & U;
 }
+
+export function jsonStrToJson(valueToSave: string) {
+  try {
+    let cleanValue = valueToSave.trim();
+    // Remove markdown code block if present
+    if (cleanValue.startsWith('```json')) {
+      cleanValue = cleanValue.replace(/^```json[\r\n]+|```$/g, '');
+    }
+    // Remove single-line comments
+    cleanValue = cleanValue.replace(new RegExp('(^|\\s)//.*$', 'gm'), '');
+    // Remove multi-line comments
+    cleanValue = cleanValue.replace(/\/\*[\s\S]*?\*\//g, '');
+    // Optionally: Replace template variables with empty string
+    cleanValue = cleanValue.replace(/{{[^}]+}}/g, '');
+    // Remove trailing commas before closing brackets/braces
+    cleanValue = cleanValue.replace(/,\s*([}\]])/g, '$1');
+    // Try to parse if it's a JSON string
+    return JSON.parse(cleanValue);
+  } catch (e) {
+    console.warn('Failed to parse JSON:', e);
+    return null;
+  }
+}

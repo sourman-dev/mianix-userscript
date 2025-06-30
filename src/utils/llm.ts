@@ -7,6 +7,13 @@ export interface OpenAIRequest {
   top_p?: number;
 }
 
+// export interface LLMOptions {
+//   maxTokens?: number;
+//   temperature?: number;
+//   top_p?: number;
+//   contextWindow: number;
+// }
+
 export interface OpenAIOptions {
   baseURL: string;
   apiKey: string;

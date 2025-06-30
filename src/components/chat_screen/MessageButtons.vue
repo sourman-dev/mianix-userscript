@@ -1,41 +1,51 @@
+<!-- src/components/chat_screen/MessageButtons.vue -->
 <template>
-  <div class="flex gap-1 items-center">
-    <button
-      v-if="role === 'user' || role === 'assistant'"
-      @click="emitClick('pencil')"
-      class="p-1 rounded hover:bg-gray-200 text-xs"
-      title="Chỉnh sửa"
+  <div class="flex justify-end">
+    <!-- Nút Pencil -->
+    <Button
+      icon="pi pi-pencil"
+      severity="secondary"
+      text rounded size="small"
+      @click="emitClick('edit')"
+      v-tooltip.top="'Chỉnh sửa'"
       :disabled="isDisabled"
-    >
-      <i class="pi pi-pencil"></i>
-    </button>
-    <button
-      v-if="role === 'assistant'"
+    />
+    
+    <!-- Nút Replay (chỉ cho assistant) -->
+    <Button
+      icon="pi pi-replay"
+      severity="secondary"
+      text rounded size="small"
       @click="emitClick('replay')"
-      class="p-1 rounded hover:bg-gray-200 text-xs"
-      title="Replay"
+      v-tooltip.top="'Tạo lại'"
       :disabled="isDisabled"
-    >
-      <i class="pi pi-replay"></i>
-    </button>
-    <button
-      v-if="role === 'user' || role === 'assistant'"
+    />
+    
+    <!-- Nút Delete -->
+    <Button
+      icon="pi pi-trash"
+      severity="danger"
+      text rounded size="small"
       @click="emitClick('delete')"
-      class="p-1 rounded hover:bg-red-100 text-red-600 text-xs"
-      title="Xoá"
+      v-tooltip.top="'Xoá'"
       :disabled="isDisabled"
-    >
-      <i class="pi pi-trash"></i>
-    </button>
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { defineProps, defineEmits, computed } from 'vue'
+import Button from 'primevue/button';
+
+// onMounted(() => {
+//   console.log(props)
+// })
+
 const props = defineProps({
   role: { type: String, required: true },
   messageId: { type: [String, Number], required: true },
-  latestMessageId: { type: [String, Number], required: true },
+  latestMessageId: { type: [String, Number], required: false },
+  status: { type: String, required: false, default: 'completed' },
 })
 
 const isDisabled = computed(() => {
@@ -47,3 +57,7 @@ function emitClick(buttonName: string) {
   emit('button-click', { buttonName, role: props.role, messageId: props.messageId })
 }
 </script>
+
+<style scoped>
+/* Xóa hết CSS cũ, chúng ta dùng PrimeVue và Tailwind */
+</style>

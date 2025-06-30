@@ -22,6 +22,8 @@ export const useResourcesStore = defineStore('resources', {
     compressorPrompt: '',
     statusPrompt: '',
     outputStructureSoftGuidePrompt: '',
+    outputFormatPrompt: '',
+    extractorCharacterPrompt: '',
   }),
   getters: {
     llmProviders_NameAndBaseUrl: (state): LLMProviderNameBaseUrl[] => {
@@ -42,6 +44,8 @@ export const useResourcesStore = defineStore('resources', {
       this.compressorPrompt = await getPresetResouce('COMPRESSOR_PROMPT.txt', 'text', true);
       this.statusPrompt = await getPresetResouce('STATUS_PROMPT.txt', 'text', true);
       this.outputStructureSoftGuidePrompt = await getPresetResouce('OUTPUT_STRUCTURE_SOFT_GUIDE_PROMPT.txt', 'text', true);
+      this.outputFormatPrompt = await getPresetResouce('OUTPUT_FORMAT_PROMPT.txt', 'text', true);
+      this.extractorCharacterPrompt = await getPresetResouce('EXTRACTOR_CHARACTER_PROMPT.txt', 'text', true);
     },
   },
 });

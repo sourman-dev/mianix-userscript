@@ -3,7 +3,7 @@ import { SCREENS } from '@/constants'
 import CharacterList from '@/components/character_cards/Index.vue'
 import CharacterTranslate from '@/components/character_cards/Translate.vue'
 import ChatScreen from '@/components/chat_screen/ChatScreen.vue'
-import LlmModelsList from '@/components/llm_models/Index.vue'
+import LlmModelsList from '@/components/llm_models/LLMIndex.vue'
 import PresetConfig from '@/components/PresetConfig.vue'
 
 export const useScreenStore = defineStore('screen', {

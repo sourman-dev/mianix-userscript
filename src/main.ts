@@ -5,7 +5,9 @@ import PrimeVue from "primevue/config";
 import Aura from "@primeuix/themes/aura";
 import ConfirmationService from "primevue/confirmationservice";
 import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
-import "./style.css";
+// Import các file CSS
+// import './tailwind.css'; // <-- Import file Tailwind chuyên dụng
+import './style.css';   // <-- Import file style chung
 import { i18n } from "./i18n";
 import { useAppStore } from "./stores/app";
 

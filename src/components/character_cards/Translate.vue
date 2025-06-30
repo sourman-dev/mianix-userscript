@@ -37,7 +37,7 @@
                   <div class="flex gap-2">
                       <SaveButton ref="saveButton2" @click="handleSave('original')" />
                       <Button severity="help" label="Translate" icon="pi pi-language" @click="handleTranslate" :loading="isTranslating" :disabled="!isReadyTranslate" />
-                      <LLMProviderSelect severity="warn"/>
+                      <LLMProviderSelect severity="warn" :button-props="{icon: 'pi pi-android'}" />
                   </div>
               </div>
 

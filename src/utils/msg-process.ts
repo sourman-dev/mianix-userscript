@@ -18,33 +18,34 @@ export function formatMessageContent(content: string): string {
   if (!content) {
     return '';
   }
-
   let formattedContent = content;
 
-  // --- BƯỚC 1: DỌN DẸP KÝ TỰ XUỐNG DÒNG ---
-  // Thay thế ba hoặc nhiều ký tự xuống dòng liên tiếp bằng đúng hai ký tự.
-  // Điều này tạo ra một khoảng trống tương đương một đoạn văn mới.
-  formattedContent = formattedContent.replace(/\n{3,}/g, '\n\n');
+  // Bước 1: Chuẩn hóa tất cả các dạng <br> thành \n
+  formattedContent = formattedContent.replace(/<br\s*\/?>/gi, "\n");
 
-  // Xóa các ký tự xuống dòng ở đầu và cuối chuỗi để tránh khoảng trống thừa.
-  formattedContent = formattedContent.trim();
-  
-  // --- BƯỚC 2: ÁP DỤNG ĐỊNH DẠNG MÀU SẮC (giữ nguyên như cũ) ---
+  // Bước 2: Xử lý các dòng mới - thay thế \n\n thành rỗng
+  formattedContent = formattedContent.replace(/\n\n/g, '');
+
+  // Bước 3: Áp dụng định dạng màu sắc
+  // Lời nói (quotes) - màu xanh dương nhẹ
   formattedContent = formattedContent.replace(
-    /(["“](.*?)[”"])/g,
-    '<span class="text-cyan-300">$1</span>'
+    /([""](.*?)[""]) /g,
+    '<span class="text-blue-600 dark:text-blue-400">$1</span>'
   );
+  // Hành động (*text*) - màu cam nhẹ
   formattedContent = formattedContent.replace(
     /(\*(.*?)\*)/g,
-    '<span class="text-amber-300 italic">$1</span>'
+    '<span class="text-orange-600 dark:text-orange-400 italic">$1</span>'
   );
+  // Nhấn mạnh (**text**) - màu tím nhẹ
   formattedContent = formattedContent.replace(
     /(\*\*(.*?)\*\*)/g,
-    '<span class="text-purple-300 font-semibold">$1</span>'
+    '<span class="text-purple-600 dark:text-purple-400 font-semibold">$1</span>'
   );
+  // Suy nghĩ [text] - màu xám
   formattedContent = formattedContent.replace(
     /(\[(.*?)\])/g,
-    '<span class="text-gray-400">$1</span>'
+    '<span class="text-gray-500 dark:text-gray-400">$1</span>'
   );
   
   // --- BƯỚC 3: CHUYỂN ĐỔI KÝ TỰ XUỐNG DÒNG SANG <br> ---

@@ -1,280 +1,408 @@
 <template>
-    <div class="flex flex-col h-screen bg-gray-900 text-gray-200 font-sans max-w-screen-2xl mx-auto w-full">
+    <div class="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans w-full">
         <!-- Header -->
-        <header class="p-2 sm:p-4 border-b border-gray-700">
+        <header
+            class="flex-shrink-0 p-2 sm:p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
             <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div class="flex items-center self-start sm:self-center space-x-3">
-                    <CharacterAvatar :src="imageFile" v-if="imageFile" :is-circle="true" class="w-12" />
+                <div class="flex items-center self-start sm:self-center space-x-3 w-full">
+                    <CharacterAvatar v-if="imageFile" :src="imageFile" :is-circle="true" class="w-12 h-12" />
                     <div>
-                        <h1 class="text-xl font-bold">{{ currentCharacter?.data?.name }}</h1>
-                        <div class="flex items-center space-x-1 mt-1">
-                            <Button v-tooltip.bottom="'Delete'" icon="pi pi-trash" severity="danger" text rounded
-                                size="small" @click="handleRemoveDialogue" />
-                            <LLMProviderSelect severity="help"/>
+                        <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ currentCharacter?.data?.name }}
+                        </h1>
+                        <div class="flex items-center justify-between">
+                            <div class="flex justify-between w-full">
+                                <div class="flex items-center space-x-1">
+                                    <LLMOptionsModal v-if="dialogueStore.currentDialogue?.llmOptions"
+                                        :init="dialogueStore.currentLLMOptions[dialogueStore.currentDialogue?.id]"
+                                        @save="handleChangeLLMOptions" />
+                                </div>
+
+                                <div class="flex items-center space-x-1">
+                                    <Button v-tooltip.bottom="'Xóa cuộc trò chuyện'" icon="pi pi-trash"
+                                        severity="danger" text rounded size="small" @click="handleRemoveDialogue" />
+                                </div>
+                                <div class="flex items-center space-x-1">
+                                    <Button v-tooltip.bottom="'Trích xuất nhân vật'" icon="pi pi-users"
+                                        severity="help" text rounded size="small" @click="modalStore.openModal(MODALS.EXTRACTOR_CHARACTER)" />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="flex items-center space-x-2 self-end sm:self-center">
-                    <Button v-tooltip.bottom="'World Book'" icon="pi pi-book" severity="secondary" />
-                    <Button v-tooltip.bottom="'Regex Script'" icon="pi pi-code" severity="secondary" />
-                    <Button v-tooltip.bottom="'Preset'" icon="pi pi-sliders-h" severity="secondary" />
-                </div>
+
             </div>
         </header>
 
         <!-- Chat/Story Area -->
-        <main class="flex-1 p-4 sm:p-6 overflow-y-auto">
+        <main ref="chatContainer" class="flex-1 p-4 sm:p-6 overflow-y-auto">
             <div class="prose prose-invert max-w-none">
-                <div v-for="(message, index) in currentDialogueMessages" :key="index" class="flex"
-                    :class="{ 'justify-end': message.role === 'user', 'justify-start': message.role === 'assistant' }">
-                    <div class="p-4 rounded-lg mb-4 max-w-lg"
-                        :class="{ 'bg-blue-500 text-white': message.role === 'user', 'bg-gray-700': message.role === 'assistant' }">
-                        <p v-html="formatMessage(message.content || '')"></p>
-                        <MessageButtons :role="message.role as string" :messageId="message.id as string"
-                            :latestMessageId="latestMessageId as string" @button-click="handleMessageButtonClick"
-                            class="flex justify-end" />
+                <!-- Vấn đề 1: Luôn hiển thị lời chào đầu tiên
+                <div v-if="firstGreeting" class="flex justify-start mb-4">
+                    <div
+                        class="p-3 sm:p-4 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-200 max-w-lg shadow-md">
+                        <p v-html="firstGreeting" class="whitespace-pre-wrap"></p>
+                    </div>
+                </div> -->
+
+                <!-- Lặp qua các node trong nhánh hiện tại -->
+                <div v-for="node in currentMessagesForDisplay" :key="node.id" class="space-y-4 mb-4">
+                    <!-- User message bubble -->
+                    <div v-if="node.userInput" class="flex justify-end">
+                        <div
+                            class="p-3 sm:p-4 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 max-w-lg shadow-md message-bubble">
+                            <p class="whitespace-pre-wrap" v-html="formatMessage(node.userInput)"></p>
+                            <MessageButtons :role="'user'" :messageId="node.id"
+                                :latestMessageId="dialogueStore.currentDialogue?.currentNodeId" :status="node.status"
+                                @button-click="handleMessageButtonClick" />
+                        </div>
+                    </div>
+
+                    <!-- Assistant message bubble -->
+                    <div v-if="node.assistantResponse" class="flex justify-start">
+                        <div
+                            class="p-3 sm:p-4 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 max-w-lg shadow-md message-bubble">
+                            <p v-html="formatMessage(node.assistantResponse)" class="whitespace-pre-wrap"></p>
+                            <MessageButtons :role="'assistant'" :messageId="node.id"
+                                :latestMessageId="dialogueStore.currentDialogue?.currentNodeId" :status="node.status"
+                                @button-click="handleMessageButtonClick" />
+                        </div>
                     </div>
                 </div>
-                <!--llmResponse -->
-                <div v-if="llmResponse && isSending" class="flex justify-start">
-                    <div class="p-4 rounded-lg mb-4 max-w-lg bg-blue-500 text-white">
-                        <p v-html="formatMessage(llmResponse)"></p>
+
+
+
+                <div v-if="isSending">
+                    <!-- Vấn đề 2: Hiển thị lại userInput khi đang regenerate -->
+                    <!-- <div v-if="regeneratingInput" class="flex justify-end group relative mb-4">
+                        <div class="p-3 sm:p-4 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 max-w-lg shadow-md message-bubble">
+                            <p class="whitespace-pre-wrap">{{ regeneratingInput }}</p>
+                        </div>
+                    </div> -->
+                    <!-- Hiển thị phản hồi đang stream của LLM -->
+                    <div class="flex justify-start">
+                        <div
+                            class="p-3 sm:p-4 rounded-lg mb-4 max-w-lg bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-200 shadow-md">
+                            <!-- Hiệu ứng loading -->
+
+                            <div v-if="!llmResponse" class="flex items-center space-x-2">
+                                <div class="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
+                                <div class="w-2 h-2 bg-gray-400 rounded-full animate-pulse"
+                                    style="animation-delay: 0.2s;">
+                                </div>
+                                <div class="w-2 h-2 bg-gray-400 rounded-full animate-pulse"
+                                    style="animation-delay: 0.4s;">
+                                </div>
+                            </div>
+                            <p v-else v-html="formatMessage(llmResponse)" class="whitespace-pre-wrap"></p>
+                        </div>
                     </div>
                 </div>
             </div>
         </main>
 
         <!-- Footer -->
-        <footer class="p-2 sm:p-4 border-t border-gray-700">
+        <footer
+            class="flex-shrink-0 p-2 sm:p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 sticky bottom-0">
             <div class="flex items-center space-x-2 sm:space-x-4">
-                <Textarea v-model="message" placeholder="Type a message..." autoResize rows="1"
-                    class="flex-1 bg-gray-800 border-gray-600 rounded-md p-2 focus:ring-purple-500 focus:border-purple-500" />
-                <Button :disabled="isSending" @click="handleSendMessage" v-tooltip.top="'Send'" icon="pi pi-send"
-                    :loading="isSending" />
+                <Textarea v-model="userInput" placeholder="Type a message..." autoResize rows="1"
+                    class="flex-1 bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded-md p-2 focus:ring-purple-500 focus:border-purple-500"
+                    @keydown.enter.exact.prevent="handleSendMessage" />
+                <SplitButton :disabled="isSending || suggestedPromptItems.length <= 0 && !userInput.trim()"
+                    @click="handleSendMessage" v-tooltip.top="'Send'" icon="pi pi-send" :loading="isSending"
+                    :model="suggestedPromptItems" />
             </div>
             <div class="flex items-center justify-center space-x-2 mt-4">
-                <Button v-tooltip.bottom="'Story Progress'" icon="pi pi-forward" severity="secondary" size="small" />
-                <Button v-tooltip.bottom="'Perspective'" icon="pi pi-eye" severity="secondary" size="small" />
-                <Button v-tooltip.bottom="'Scene Setting'" icon="pi pi-cog" severity="secondary" size="small" />
+                <SelectButton v-model="selectedMoreMode" :options="moreModeItems" optionLabel="value" dataKey="value"
+                    aria-labelledby="Hướng dẫn phản hồi" size="small">
+                    <template #option="slotProps">
+                        <i :class="slotProps.option.icon"></i>
+                    </template>
+                </SelectButton>
             </div>
         </footer>
+        <EditMessageModal @save-message="handleEditMessageModal" />
+        <ExtractorCharacterModal @save-character="handleExtractorCharacterModal" />
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watchEffect, onMounted, computed } from 'vue';
+import { ref, watch, onMounted, computed, nextTick } from 'vue';
+import { storeToRefs } from 'pinia';
 import Button from 'primevue/button';
 import Textarea from 'primevue/textarea';
+import CharacterAvatar from '@/components/character_cards/CharacterAvatar.vue';
 import MessageButtons from './MessageButtons.vue';
-import LLMProviderSelect from '@/components/common/LLMProviderSelect.vue';
+import EditMessageModal from './EditMessageModal.vue';
+import ExtractorCharacterModal from './ExtractorCharacterModal.vue';
 import { useScreenStore } from '@/stores/screen';
 import { useResourcesStore } from '@/stores/resources';
-import { CharacterCard, db, Dialogue, DialogueMessage, LLMModel, UserProfile } from '@/db';
+import { useDialogueStore } from '@/stores/dialogue';
+import { useModalStore } from '@/stores/modal';
+import { CharacterCard, db, LLMModel, UserProfile } from '@/db';
 import { formatMessageContent } from '@/utils/msg-process';
 import { buildFinalPrompt } from '@/utils/prompt-utils';
 import { OpenAIOptions, sendOpenAiRequestStream } from '@/utils/llm';
-import { SCREENS } from '@/constants';
+import { SCREENS, MODALS } from '@/constants';
 import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
-import { storeToRefs } from 'pinia';
+import LLMOptionsModal from '@/components/llm_models/LLMOptionsModal.vue';
+import { parseLLMResponse } from '@/utils/response-parser';
 
 const screenStore = useScreenStore();
-const { screenPayload } = storeToRefs(screenStore);
 const resourcesStore = useResourcesStore();
-// const { llmProviders } = storeToRefs(resourcesStore);
-const currentCharacter = ref<Partial<CharacterCard>>({});
-const currentUser = ref<Partial<UserProfile>>({});
-const currentDialogue = ref<Partial<Dialogue>>({});
-const currentDialogueMessages = ref<Partial<DialogueMessage>[]>([]);
-const currentLLMModel = ref<Partial<LLMModel>>({});
+const dialogueStore = useDialogueStore();
+const modalStore = useModalStore();
 
-const message = ref('');
+const { screenPayload } = storeToRefs(screenStore);
+const { currentMessagesForDisplay, chatHistoryForPrompt } = storeToRefs(dialogueStore);
+
+const currentCharacter = ref<CharacterCard | null>(null);
+const currentUser = ref<UserProfile | null>(null);
+const currentLLMModel = ref<LLMModel | null>(null);
+const selectedMoreMode = ref<{ icon: string, value: string }>();
+const moreModeItems = ref([
+    { icon: 'pi pi-arrow-right', value: 'Hãy phát triển cốt truyện tiếp theo, làm cho câu chuyện thú vị và hấp dẫn hơn' },
+    { icon: 'pi pi-book', value: 'Góc nhìn Tiểu thuyết' },
+    { icon: 'pi pi-user-plus', value: 'Góc nhìn Nhân vật chính' },
+    { icon: 'pi pi-video', value: 'Vui lòng thêm mô tả cảnh vật và chi tiết môi trường để tăng cường không khí câu chuyện.' },
+]);
+// const suggestedPrompts = ref<string[]>([]); // Thêm ref để lưu gợi ý
+
+const suggestedPromptItems = computed(() => {
+    const suggestedPrompts = dialogueStore.suggestedPrompts[currentCharacter.value?.id || ''];
+    return suggestedPrompts ? suggestedPrompts.map((prompt, index) => ({
+        label: prompt,
+        command: () => {
+            userInput.value = prompt;
+            handleSendMessage();
+        }
+    })) : [];
+});
+
+const userInput = ref('');
 const llmResponse = ref('');
 const isSending = ref(false);
 const imageFile = ref<File | null>(null);
-
-const latestMessageId = computed(() => {
-    return currentDialogueMessages.value[currentDialogueMessages.value.length - 1]?.id;
-})
-
-function formatMessage(content: string): string {
-    return formatMessageContent(content);
-}
+const chatContainer = ref<HTMLElement | null>(null);
+const firstGreeting = ref<string | null>(null);
 const { confirmDelete } = useDeleteConfirm();
+const regeneratingInput = ref<string | null>(null);
 
-function handleRemoveDialogue() {
+const formatMessage = (content: string): string => formatMessageContent(content);
+
+const scrollToBottom = () => {
+    nextTick(() => {
+        if (chatContainer.value) {
+            chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+        }
+    });
+};
+
+const handleExtractorCharacterModal = (character: CharacterCard) => {
+    currentCharacter.value = character;
+}
+
+const handleChangeLLMOptions = (llmOptions: any) => {
+    if (!currentCharacter.value) return;
+    dialogueStore.updateLLMOptions(currentCharacter.value.id, llmOptions);
+}
+
+const handleRemoveDialogue = () => {
+    if (!currentCharacter.value) return;
     const info = {
-        id: currentCharacter.value?.id,
-        name: (currentCharacter.value as CharacterCard)?.data?.name || 'Unknown',
-    }
+        id: currentCharacter.value.id,
+        name: currentCharacter.value.data?.name || 'Unknown',
+    };
     confirmDelete(info, {
-        message: `Bạn có chắc chắn muốn xóa cuộc trò chuyện với "${info.name}"?`,
+        message: `Bạn có chắc chắn muốn xóa toàn bộ cuộc trò chuyện với "${info.name}" không? Hành động này không thể hoàn tác.`,
         header: 'Xóa cuộc trò chuyện',
-        onConfirm: async (info) => {
+        onConfirm: (info) => {
             db.DialogueMessages.removeMany({ dialogueId: info.id });
             db.Dialogues.removeOne({ id: info.id });
-            screenStore.setScreen(SCREENS.CHARACTER_LIST, null);
+            dialogueStore.suggestedPrompts[info.id] = [];
+            // dialogueStore.loadDialogue(info.id); // Tải lại để reset state
+            screenStore.setScreen(SCREENS.CHARACTER_LIST);
         }
-    })
+    });
+};
 
-}
-
-async function sendMessage(message: string) {
+const sendRequestToLLM = async (promptMessage: string) => {
     try {
-        const diaglougeId = currentDialogue.value.id || currentCharacter.value.id;
-        if (!diaglougeId) {
-            return;
-        }
-        const contextWindowSize = 10;
-        const recentHistory = currentDialogueMessages.value.slice(-contextWindowSize);
-        const prompts = {
-            multiModePrompt: resourcesStore.multiModePrompt,
-            multiModeChainOfThoughtPrompt: resourcesStore.multiModeChainOfThoughtPrompt,
-            // compressorPrompt: resourcesStore.compressorPrompt,
-            // statusPrompt: resourcesStore.statusPrompt,
-            outputStructureSoftGuidePrompt: resourcesStore.outputStructureSoftGuidePrompt,
-        }
-
+        currentLLMModel.value = db.LLMModels.findOne({ isDefault: true }) as LLMModel | null;
+        if (!currentLLMModel.value || !currentCharacter.value) return '';
+        const llmOptions = dialogueStore.currentLLMOptions[currentCharacter.value.id];
         const { systemPrompt, userPrompt } = buildFinalPrompt(
-            currentCharacter.value as CharacterCard,
-            recentHistory as DialogueMessage[],
-            message,
+            currentCharacter.value,
+            chatHistoryForPrompt.value as string,
+            promptMessage,
             { name: currentUser.value?.name || 'Anonymous' },
-            prompts
+            {
+                multiModePrompt: resourcesStore.multiModePrompt,
+                multiModeChainOfThoughtPrompt: resourcesStore.multiModeChainOfThoughtPrompt,
+                outputStructureSoftGuidePrompt: resourcesStore.outputStructureSoftGuidePrompt,
+                outputFormatPrompt: resourcesStore.outputFormatPrompt,
+            },
+            selectedMoreMode.value?.value,
+            llmOptions?.responseLength
         );
-        // console.log('--- FINAL SYSTEM PROMPT ---');
-        // console.log(systemPrompt);
-        // console.log('--- FINAL USER PROMPT ---');
-        // console.log(userPrompt);
+
         isSending.value = true;
         llmResponse.value = '';
+        regeneratingInput.value = promptMessage;
+        // console.info('Sending request to LLM with System Prompt \n:', systemPrompt);
+        console.info('Sending request to LLM with User Prompt \n:', userPrompt);
+
         const options: OpenAIOptions = {
-            baseURL: currentLLMModel.value?.baseUrl as string,
-            apiKey: currentLLMModel.value?.apiKey || '',
+            baseURL: currentLLMModel.value.baseUrl,
+            apiKey: currentLLMModel.value.apiKey,
             data: {
-                model: currentLLMModel.value?.modelName || 'gpt-3.5-turbo',
+                model: currentLLMModel.value.modelName,
                 messages: [
-                    {
-                        role: 'system',
-                        content: systemPrompt
-                    },
-                    {
-                        role: 'user',
-                        content: userPrompt
-                    }
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
                 ],
                 stream: true,
-                temperature: 0.9,
+                temperature: llmOptions?.temperature || 0.8,
+                top_p: llmOptions?.top_p || 0.9,
             }
         };
+
         await sendOpenAiRequestStream(options, (chunk: string) => {
-            // console.log(chunk);
             llmResponse.value += chunk;
+            scrollToBottom();
         });
 
-        db.DialogueMessages.insert({
-            dialogueId: diaglougeId,
-            role: 'assistant',
-            content: llmResponse.value,
-            createdAt: Date.now(),
-        });
-        llmResponse.value = '';
-    } catch (error: any) {
-        console.error('Error sending message:', error);
+        const finalResponse = llmResponse.value;
+
+        return finalResponse;
+    } catch (error) {
+
     } finally {
+        regeneratingInput.value = null;
+        llmResponse.value = '';
         isSending.value = false;
     }
 }
 
-async function handleSendMessage() {
+// Thêm helper function này vào script setup
+const handleAIResponse = (aiResponseRaw: string, nodeId: string) => {
+    if (!aiResponseRaw) {
+        dialogueStore.markAsFailed(nodeId);
+        return;
+    }
+
+    const parsed = parseLLMResponse(aiResponseRaw);
+    console.info('AI response:', parsed);
+
+    // // Cập nhật UI với các gợi ý mới
+    // suggestedPrompts.value = parsed.nextPrompts;
+    // Cập nhật gợi ý cho character hiện tại
+    dialogueStore.suggestedPrompts[currentCharacter.value?.id || ''] = parsed.nextPrompts;
+
+    // Chỉ lưu nội dung chính vào cây hội thoại
+    if (parsed.mainContent) {
+        dialogueStore.updateAIResponse(nodeId, parsed.mainContent);
+    } else {
+        dialogueStore.markAsFailed(nodeId);
+    }
+};
+
+// Cập nhật handleSendMessage
+const handleSendMessage = async () => {
+    if (isSending.value || !userInput.value.trim()) return;
+
+    const newUserInput = userInput.value;
+    userInput.value = ''; // Clear input field immediately
+
+    // 🆕 BƯỚC 1: Thêm user input với status pending ngay lập tức
+    const pendingNodeId = dialogueStore.addInput(newUserInput);
+
+    if (!pendingNodeId) {
+        console.error('❌ Failed to add user input');
+        return;
+    }
+
     try {
-        const diaglougeId = currentDialogue.value.id || currentCharacter.value.id;
-        if (message.value.trim() === '' || !diaglougeId) {
-            return;
+        // 🆕 BƯỚC 2: Gửi request đến AI
+        const aiResponseRaw = await sendRequestToLLM(newUserInput);
+        if (aiResponseRaw) {
+            handleAIResponse(aiResponseRaw, pendingNodeId);
         }
-        const newMessage = message.value;
-        db.DialogueMessages.insert({
-            dialogueId: diaglougeId,
-            role: 'user',
-            content: newMessage,
-            createdAt: Date.now(),
-        })
-        message.value = '';
-        await sendMessage(newMessage);
-    } catch (error: any) {
-        console.error('Error sending message:', error);
+    } catch (error) {
+        console.error('❌ AI request failed:', error);
+        dialogueStore.markAsFailed(pendingNodeId);
     }
+};
+
+//Cập nhật handleEditMessageModal
+function handleEditMessageModal(messageId: string, content: string, isAssistant: boolean) {
+    dialogueStore.updateMessage(messageId, content, isAssistant);
 }
 
+// Cập nhật handleMessageButtonClick
 async function handleMessageButtonClick({ buttonName, role, messageId }: { buttonName: string, role: string, messageId: string }) {
-    // kiểm tra return ngay nếu currentDialogueMessages chỉ có 1 bản ghi và role lại là assitant
-    if (currentDialogueMessages.value.length === 1 && role === 'assistant') {
+    if (dialogueStore.currentDialogue?.currentNodeId !== messageId) {
         return;
     }
 
-    if (latestMessageId.value !== messageId) {
-        return;
+    if (buttonName === 'edit') {
+        const currentMessage = db.DialogueMessages.findOne({ id: messageId });
+        if (currentMessage) {
+            modalStore.openModal(MODALS.EDIT_MESSAGE, {
+                id: currentMessage.id,
+                content: role === 'assistant' ? currentMessage.assistantResponse : currentMessage.userInput,
+                isAssistant: role === 'assistant',
+            })
+        }
     }
 
-    switch (buttonName) {
-        case 'pencil':
-            console.log('pencil');
-            break;
-        case 'replay':
-            db.DialogueMessages.removeOne({ id: messageId });
-            const messageLatestOfUser = db.DialogueMessages.findOne({
-                role: 'user'
-            }, {
-                sort: {
-                    createdAt: -1
+    if (buttonName === 'delete') {
+        if (role === 'assistant') {
+            dialogueStore.retryMessage(messageId);
+        } else {
+            dialogueStore.regenerate();
+        }
+    }
+
+    if (buttonName === 'replay') {
+        const userInput = dialogueStore.retryMessage(messageId);
+        if (userInput) {
+            try {
+                const aiResponseRaw = await sendRequestToLLM(userInput);
+                if (aiResponseRaw) {
+                    handleAIResponse(aiResponseRaw, messageId);
                 }
-            })?.content
-            // const messageLatestOfUser2 = db.DialogueMessages.findOne({
-            //     id: latestMessageId.value
-            // })?.content
-            // console.log(messageLatestOfUser, messageLatestOfUser2);
-            await sendMessage(messageLatestOfUser as string);
-            break;
-        case 'delete':
-            db.DialogueMessages.removeOne({ id: messageId });
-            break;
+            } catch (error) {
+                console.error('❌ Retry failed:', error);
+                dialogueStore.markAsFailed(messageId);
+            }
+        }
     }
 }
 
-watchEffect((onCleanup) => {
-    if (currentDialogue.value?.id) {
-        const cursor = db.DialogueMessages.find({
-            dialogueId: currentDialogue.value.id,
-            role: { $in: ['user', 'assistant'] }
-        }, {
-            sort: {
-                createdAt: 1
-            }
-        })
-        currentDialogueMessages.value = cursor.fetch() as DialogueMessage[];
-        // console.log(currentDialogueMessages.value);
-        onCleanup(() => cursor.cleanup())
-    }
-})
+watch(currentMessagesForDisplay, () => {
+    scrollToBottom();
+}, { deep: true });
 
-
-onMounted(() => {
+onMounted(async () => {
     setTimeout(() => {
-        if (screenPayload.value?.id) {
-            currentCharacter.value = db.CharacterCards.findOne({
-                id: screenPayload.value.id,
-            }) as CharacterCard;
-            if (currentCharacter.value?.id) {
-                imageFile.value = currentCharacter.value?.getImageFile?.() as File;
+        const characterId = screenPayload.value?.id as string;
+        if (characterId) {
+            dialogueStore.loadDialogue(characterId);
+
+            currentCharacter.value = db.CharacterCards.findOne({ id: characterId }) as CharacterCard | null;
+            if (currentCharacter.value) {
+                imageFile.value = currentCharacter.value.getImageFile() || null;
+                currentCharacter.value.getData();
+                const greeting = currentCharacter.value.getGreeting();
+                if (greeting) {
+                    firstGreeting.value = formatMessageContent(greeting);
+                }
             }
-            currentUser.value = db.UserProfiles.findOne({}) as UserProfile;
-            const dialogue = db.Dialogues.findOne({ id: screenStore.screenPayload?.id });
-            if (dialogue) {
-                currentDialogue.value = dialogue;
-            }
-            currentLLMModel.value = db.LLMModels.findOne({ isDefault: true }) as LLMModel;
+
+            currentUser.value = db.UserProfiles.findOne({}) as UserProfile | null;
         }
     }, 100);
-})
+});
 </script>
 
 <style scoped>
@@ -283,6 +411,16 @@ onMounted(() => {
 }
 
 .prose p {
-    margin-bottom: 1.25em;
+    margin-bottom: 0;
+}
+
+/* 🆕 CSS MỚI CHO BUBBLE VÀ BUTTONS */
+
+/* Container của bubble cần có position relative */
+.message-bubble {
+    position: relative;
+    /* Thêm padding-bottom để chữ không bị các nút che mất */
+    padding-bottom: 10px !important;
+    /* Khoảng 2.25rem */
 }
 </style>

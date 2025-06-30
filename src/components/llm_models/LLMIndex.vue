@@ -262,7 +262,7 @@ defineExpose({
                 </span>
               </div>
             </div>
-            <Menu :ref="(el) => menus[index] = el" :model="menuItems" :popup="true">
+            <Menu :ref="(el: any) => menus[index] = el" :model="menuItems" :popup="true">
               <template #item="{ item, props }">
                 <a v-ripple v-bind="props.action" :class="item.class">
                   <span :class="item.icon" />
@@ -270,7 +270,7 @@ defineExpose({
                 </a>
               </template>
             </Menu>
-            <Button @click="(event) => toggleMenu(event, model, index)" severity="secondary" size="small" text>
+            <Button @click="(event: any) => toggleMenu(event, model, index)" severity="secondary" size="small" text>
               <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />

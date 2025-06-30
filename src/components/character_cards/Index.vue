@@ -63,10 +63,13 @@ import { writeCharacterToPng } from '@/utils/character-parser';
 import { useDeleteConfirm } from '@/composables/useDeleteConfirm'
 import { Character } from '@/newDb/Character';
 import { db, CharacterCard, Dialogue, UserProfile } from '@/db';
+import { useDialogueStore } from '@/stores/dialogue';
 import dayjs from 'dayjs';
 import { adaptText } from '@/utils/msg-process';
 const useScreen = useScreenStore();
 const useModal = useModalStore();
+const dialogueStore = useDialogueStore();
+
 const { confirmDelete } = useDeleteConfirm();
 
 const characterCards = ref<CharacterCard[]>([]);
@@ -141,23 +144,52 @@ const handleCharacterExport = async (id: string) => {
 }
 
 const handleToChat = (characterId: string) => {
-  const characterCard = db.CharacterCards.findOne({ id: characterId }) as CharacterCard;
-  const currentDialogue = db.Dialogues.findOne({ id: characterId }) as Dialogue;
-  const currentProfile = db.UserProfiles.findOne({}) as UserProfile;
-  if (!currentDialogue) {
-    db.Dialogues.insert({ id: characterId, createdAt: Date.now(), llmOptions: { temperature: 0.7, maxTokens: 1000, contextWindow: 4000 } })
-    characterCard.getData()
-    const greeting = adaptText(characterCard.getGreeting(), currentProfile.name, characterCard.data.name);
-    console.log(greeting, currentProfile.name)
-    db.DialogueMessages.insert({
-      role: 'assistant',
-      content: greeting,
-      id: characterId,
-      createdAt: Date.now(),
-      dialogueId: characterId,
-    })
-  }
-  useScreen.setScreen(SCREENS.CHAT, { id: characterId })
+  // // 1. Kiểm tra xem cuộc hội thoại (Dialogue) đã tồn tại chưa
+  // const existingDialogue = db.Dialogues.findOne({ id: characterId }) as Dialogue | null;
+  
+  // // 2. Nếu chưa tồn tại, tạo một bản ghi Dialogue mới
+  // if (!existingDialogue) {
+  //   console.log(`No dialogue found for character ${characterId}. Creating a new one.`);
+
+  //   // Lấy model LLM mặc định để thiết lập cho cuộc hội thoại mới
+  //   // const defaultLLMModel = db.LLMModels.findOne({ isDefault: true }) as LLMModel | null;
+
+  //   const newDialouge = db.Dialogues.insert({
+  //     id: characterId,
+  //     createdAt: Date.now(),
+  //     // Bắt đầu từ node gốc, chưa có tin nhắn nào
+  //     currentNodeId: 'root', 
+  //     // Thiết lập các tùy chọn LLM mặc định cho cuộc hội thoại này
+  //     llmOptions: {
+  //       temperature: 0.7,
+  //       maxTokens: 1000,
+  //       contextWindow: 4000,
+  //       // (Tùy chọn) Bạn có thể lưu cả modelId nếu muốn
+  //       // modelId: defaultLLMModel?.id, 
+  //     }
+  //   });
+  //   const characterCard = db.CharacterCards.findOne({ id: characterId }) as CharacterCard;
+  //   characterCard.getData();
+  //   let firstGreeting = characterCard.getGreeting() as string;
+  //   firstGreeting = adaptText(firstGreeting);
+  //   const newMessage = db.DialogueMessages.insert({
+  //     id: crypto.randomUUID(),
+  //     dialogueId: newDialouge.id,
+  //     parentId: 'root',
+  //     userInput: '',
+  //     assistantResponse: firstGreeting,
+  //     status: 'completed',
+  //     createdAt: Date.now(),
+  //   })
+  //   console.log('newMessage: ', newMessage);
+  // } else {
+  //   console.log(`Found existing dialogue for character ${characterId}.`);
+  // }
+    dialogueStore.loadDialogue(characterId);
+  // 3. Chuyển người dùng đến màn hình chat
+  // Màn hình chat (ChatScreen.vue) sẽ chịu trách nhiệm tải dữ liệu hội thoại từ DB,
+  // và hiển thị lời chào nếu đó là lần đầu tiên (tức là không có tin nhắn nào khác ngoài gốc).
+  useScreen.setScreen(SCREENS.CHAT, { id: characterId });
 }
 
 watchEffect((onCleanup) => {

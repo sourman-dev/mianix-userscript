@@ -1,0 +1,62 @@
+/* src/tailwind.css */
+
+/*
+ * 1. Import các thành phần cơ bản của Tailwind
+ */
+@import "tailwindcss";
+
+/*
+ * 2. Đăng ký các giá trị tiện ích (utility values) bạn sẽ dùng trong project.
+ *    Đây là bước quan trọng nhất của Tailwind v4.
+ *    Bất kỳ giá trị nào bạn muốn dùng (ví dụ: p-4, gap-2, text-lg) đều cần được tham chiếu ở đây.
+ */
+@theme {
+  /* Spacing (cho p, m, gap, w, h, v.v...) */
+  --spacing-1: theme(spacing.1);
+  --spacing-2: theme(spacing.2);
+  --spacing-3: theme(spacing.3);
+  --spacing-4: theme(spacing.4);
+  --spacing-6: theme(spacing.6);
+  --spacing-12: theme(spacing.12);
+  /* Bạn có thể thêm nhiều hơn nếu cần */
+
+  /* Font Sizes (cho text-sm, text-lg, v.v...) */
+  --font-size-xs: theme(fontSize.xs);
+  --font-size-sm: theme(fontSize.sm);
+  --font-size-base: theme(fontSize.base);
+  --font-size-lg: theme(fontSize.lg);
+  --font-size-xl: theme(fontSize.xl);
+  --font-size-2xl: theme(fontSize.2xl);
+
+  /* Colors (cho bg-*, text-*, border-*, v.v...) */
+  /* Ví dụ, nếu bạn muốn dùng text-white, bg-gray-900 */
+  --color-white: theme(colors.white);
+  --color-gray-900: theme(colors.gray.900);
+  --color-blue-500: theme(colors.blue.500);
+  /* Thêm các màu khác bạn sử dụng */
+
+  /* Thêm các thuộc tính khác nếu bạn dùng, ví dụ: borderRadius, fontWeight */
+  --border-radius-lg: theme(borderRadius.lg);
+  --font-weight-bold: theme(fontWeight.bold);
+  --font-weight-semibold: theme(fontWeight.semibold);
+}
+
+/*
+ * 3. (Tùy chọn) Định nghĩa các component tùy chỉnh bằng @apply
+ *    Đặt chúng ở đây sẽ giúp tách biệt logic và tránh xung đột.
+ */
+.message-buttons {
+  @apply absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-1 bg-gray-800/50 backdrop-blur-sm p-1 rounded-lg;
+}
+.user-buttons {
+  @apply -left-2 sm:-left-12;
+}
+.assistant-buttons {
+  @apply -right-2 sm:-right-12;
+}
+.prose {
+    line-height: 1.75;
+}
+.prose p {
+    margin-bottom: 0;
+}

@@ -70,60 +70,69 @@ export class CharacterCard {
 }
 
 export interface ParsedResponse {
-    regexResult?: string;
-    nextPrompts?: string[];
-    compressedContent?: string;
-  }
+  regexResult?: string;
+  nextPrompts?: string[];
+  compressedContent?: string;
+}
 
 export type DialogueMessageType = {
-  role: "user" | "assistant" | "system" | "sample";
-  content: string;
   parsedContent?: ParsedResponse;
   id: string;
   dialogueId: string;
+  parentId: string | null;
+  userInput: string;
+  assistantResponse: string;
+  status?: "pending" | "completed" | "failed"; // <-- THÊM FIELD MỚI
   createdAt: number;
-}
+};
 export type DialogType = {
   id: string;
   createdAt: number;
-  // messages?: DialogueMessageType[];
-  llmOptions: DialogueOptions;
-}
-export interface DialogueOptions {
+  currentNodeId: string; // <-- THÊM VÀO: ID của node hiện tại trong cây
+  llmOptions: LLMOptions;
+};
+export interface LLMOptions {
   temperature?: number;
   maxTokens?: number;
   streaming?: boolean;
   contextWindow?: number;
+  top_p?: number;
+  responseLength?: number;
 }
 
 export type UserProfileType = {
   id: string;
   name: string; // Tên hiển thị, sẽ thay thế {{user}}
-  
+
   // Các thuộc tính mô tả để đưa vào prompt
   appearance?: string; // "Một người đàn ông cao lớn với mái tóc đen và đôi mắt nâu."
   personality?: string; // "Tính cách trầm lặng, hay quan sát, nhưng rất quyết đoán."
-  background?: string;  // "Là một cựu binh, đang tìm kiếm sự bình yên ở thành phố này."
-  
+  background?: string; // "Là một cựu binh, đang tìm kiếm sự bình yên ở thành phố này."
+
   // Các thuộc tính trạng thái động
   currentStatus?: string; // "Đang cảm thấy mệt mỏi sau một ngày dài."
-  inventory?: string[];   // ["Một chiếc chìa khóa cũ", "Bức ảnh mờ"]
+  inventory?: string[]; // ["Một chiếc chìa khóa cũ", "Bức ảnh mờ"]
   createdAt: number;
-}
+};
 
 export class DialogueMessage {
-  role: "user" | "assistant" | "system" | "sample";
-  content: string;
   parsedContent?: ParsedResponse;
   id: string;
   dialogueId: string;
+  parentId: string | null;
+  userInput: string;
+  assistantResponse: string;
+  status?: "pending" | "completed" | "failed"; // <-- THÊM PROPERTY
   createdAt: number;
+
   constructor(data: DialogueMessageType) {
-    this.role = data.role;
-    this.content = data.content;
     this.parsedContent = data.parsedContent;
     this.id = data.id;
     this.dialogueId = data.dialogueId;
+    this.parentId = data.parentId;
+    this.userInput = data.userInput;
+    this.assistantResponse = data.assistantResponse;
+    this.status = data.status || "pending"; // <-- THÊM VÀO CONSTRUCTOR
     this.createdAt = data.createdAt;
   }
 }
@@ -131,13 +140,14 @@ export class DialogueMessage {
 export class Dialogue {
   id: string;
   createdAt: number;
-  // messages?: DialogueMessageType[];
-  llmOptions: DialogueOptions;
+  currentNodeId: string; // <-- THÊM VÀO: ID của node hiện tại trong cây
+  llmOptions: LLMOptions;
   constructor(data: DialogType) {
     this.id = data.id;
     this.createdAt = data.createdAt;
     // this.messages = data.messages || [];
     this.llmOptions = data.llmOptions;
+    this.currentNodeId = data.currentNodeId || "root";
   }
 }
 
@@ -205,7 +215,7 @@ const LLMModels = new Collection<LLMModel>({
   primaryKeyGenerator: () => crypto.randomUUID(),
 });
 
-if(UserProfiles.find().count() === 0) {
+if (UserProfiles.find().count() === 0) {
   UserProfiles.insert({
     id: crypto.randomUUID(),
     name: "Roger",
@@ -215,7 +225,7 @@ if(UserProfiles.find().count() === 0) {
     currentStatus: "Đang cảm thấy mệt mỏi sau một ngày dài.",
     inventory: ["Một chiếc chìa khóa cũ", "Bức ảnh mờ"],
     createdAt: Date.now(),
-  })
+  });
 }
 
 export const db = {
@@ -224,5 +234,5 @@ export const db = {
   Storage,
   DialogueMessages,
   Dialogues,
-  UserProfiles
+  UserProfiles,
 };

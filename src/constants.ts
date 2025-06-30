@@ -9,6 +9,8 @@ export const SCREENS = {
 export const MODALS = {
   LLM_MODEL: "llm_model",
   CHARACTER_IMPORT: "character_import",
+  EDIT_MESSAGE: "edit_message",
+  EXTRACTOR_CHARACTER: 'extractor_character',
 };
 export const USCR_NAME = "Mianix";
 export const SERVER_BASE_URL = "https://mianix.sourman.dev";
