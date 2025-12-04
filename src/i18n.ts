@@ -7,6 +7,7 @@ export const i18n = createI18n({
   messages: {
     vi: {
       'app.name': 'Mianix',
+      'nav.profiles': 'Hồ sơ',
       'nav.characters': 'Nhân vật',
       'nav.llm_models': 'Models AI',
       'nav.presets': 'Lời nhắc',

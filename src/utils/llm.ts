@@ -1,3 +1,5 @@
+import { gmFetchLLM,  gmFetchLLMStream } from "./gm-helper";
+
 export interface OpenAIRequest {
   model: string;
   messages: { role: string; content: string }[];
@@ -25,103 +27,101 @@ export async function sendOpenAiRequest(
   options: OpenAIOptions,
   onChunk?: (chunk: string) => void
 ): Promise<string | void> {
-  try {
-    const isStreaming = options.stream === true && onChunk !== undefined;
-    const requestData = { ...options.data, stream: isStreaming };
+  const isStreaming = options.stream === true && onChunk !== undefined;
+  const requestData = { ...options.data, stream: isStreaming };
+  
+  // Ensure baseURL ends with /
+  const normalizedBaseURL = options.baseURL.endsWith('/') ? options.baseURL : `${options.baseURL}/`;
+  const apiURL = `${normalizedBaseURL}chat/completions`;
+  
+  // --- Xử lý cho trường hợp KHÔNG STREAMING (giữ lại code cũ nếu cần) ---
+  if (!isStreaming) {
+    // Bạn có thể giữ lại hàm gmFetchLLM cũ cho trường hợp này,
+    // hoặc tạo một request mới ở đây.
+    // hoặc tạo một request mới ở đây.
     
-    const apiURL = `${options.baseURL}chat/completions`;
-    const response = await fetch(apiURL, {
+    const response = await gmFetchLLM(apiURL, { // Giả sử gmFetchLLM cũ vẫn tồn tại
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${options.apiKey}`,
+      },
+      body: JSON.stringify(requestData),
+    });
+    const data = await response.json();
+    
+    if (!data) {
+      console.error("❌ LLM Response is null/undefined");
+      return '';
+    }
+    
+    if (data.error) {
+      console.error("❌ LLM API Error:", data.error);
+      return '';
+    }
+
+    return data?.choices?.[0]?.message?.content || '';
+  }
+
+  // --- Xử lý cho trường hợp STREAMING ---
+  console.log("🎬 STREAMING MODE ACTIVATED"); // Debug: Check if streaming is triggered
+  
+  if (!onChunk) {
+    throw new Error('onChunk callback is required for streaming mode');
+  }
+
+  // Buffer để lưu trữ các dòng dữ liệu chưa hoàn chỉnh
+  let buffer = "";
+
+  const processDataChunk = (newData: string) => {
+    // Nối dữ liệu mới vào buffer
+    buffer += newData;
+
+    // Tách buffer thành các dòng
+    const lines = buffer.split('\n');
+
+    // Dòng cuối cùng có thể chưa hoàn chỉnh, giữ lại nó trong buffer cho lần sau
+    buffer = lines.pop() || "";
+
+    // Xử lý từng dòng hoàn chỉnh
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (trimmedLine.startsWith("data: ")) {
+        const jsonStr = trimmedLine.slice(5).trim();
+        if (jsonStr === "[DONE]") {
+          // Stream đã kết thúc từ phía server
+          return;
+        }
+        try {
+          const data = JSON.parse(jsonStr);
+          const content = data?.choices?.[0]?.delta?.content;
+          if (content) {
+            // Gửi nội dung đến callback cuối cùng của người dùng
+            onChunk(content);
+          }
+        } catch (e) {
+          console.warn("Could not parse streaming JSON chunk:", jsonStr, e);
+        }
+      }
+    }
+  };
+
+  try {
+    // Gọi hàm streaming mới
+    await gmFetchLLMStream(apiURL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${options.apiKey}`,
       },
       body: JSON.stringify(requestData),
+      onChunk: processDataChunk, // Cung cấp hàm xử lý chunk
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    // Non-streaming mode
-    if (!isStreaming) {
-      const data = await response.json();
-      return data?.choices?.[0]?.message?.content || '';
-    }
-
-    // Streaming mode
-    if (!onChunk) {
-      throw new Error('onChunk callback is required for streaming mode');
-    }
-
-    // Safari compatibility: Check if ReadableStream is supported
-    if (response.body?.getReader) {
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        // Safely decode and handle chunks
-        const chunk = decoder.decode(value, { stream: true });
-        buffer += chunk;
-
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (!trimmedLine || !trimmedLine.startsWith("data: ")) continue;
-
-          try {
-            const jsonStr = trimmedLine.slice(5).trim(); // Remove 'data: ' more safely
-            if (jsonStr === "[DONE]") {
-              // onChunk("\n[Translation completed]");
-              return;
-            }
-
-            const data = JSON.parse(jsonStr);
-            const content = data?.choices?.[0]?.delta?.content;
-            if (content) {
-              onChunk(content);
-            }
-
-            if (data?.choices?.[0]?.finish_reason === "stop") {
-              // onChunk("\n[Translation completed]");
-              return;
-            }
-          } catch (e) {
-            console.warn("Error parsing chunk:", e);
-            continue;
-          }
-        }
-      }
-    } else {
-      // Fallback for browsers that don't support ReadableStream (streaming mode)
-      const text = await response.text();
-      try {
-        const lines = text.split("\n");
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const jsonStr = line.slice(5).trim();
-            if (jsonStr === "[DONE]") continue;
-            const data = JSON.parse(jsonStr);
-            const content = data?.choices?.[0]?.delta?.content;
-            if (content) {
-              onChunk(content);
-            }
-          }
-        }
-        // onChunk("\n[Translation completed]");
-      } catch (e) {
-        console.error("Error processing response:", e);
-        throw e;
-      }
-    }
+    // Khi promise resolve, stream đã kết thúc
+    console.log("LLM stream finished successfully.");
   } catch (error) {
-    console.error("OpenAI request error:", error);
+    console.error("Error during LLM stream:", error);
+    // Báo lỗi cho người dùng, ví dụ: onChunk("[ERROR]...")
+    onChunk(`\n\n[LỖI]: ${(error as Error).message}`);
     throw error;
   }
 }

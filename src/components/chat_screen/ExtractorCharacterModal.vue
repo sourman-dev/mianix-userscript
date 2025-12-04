@@ -1,6 +1,6 @@
 <template>
   <Dialog
-    :visible="useModal.isModalOpen"
+    :visible="useModal.isModalOpen(MODALS.EXTRACTOR_CHARACTER)"
     @update:visible="(value) => { if (!value) closeModal() }"
     @hide="closeModal"
     modal
@@ -13,7 +13,7 @@
         <label for="extractor-name" class="block text-sm font-medium text-gray-700 mb-1">Extractor Name</label>
         <InputText id="extractor-name" v-model="extractorName" class="w-full" />
       </div>
-      <Button label="Extractor" icon="pi pi-cog" class="w-full" @click="onExtract" />
+      <Button label="Extractor" :loading="isExtracting" :disabled="!extractorName || !characterId" icon="pi pi-question-circle" class="w-full" @click="onExtract" />
       <Fieldset legend="Result">
         <div class="flex flex-col gap-3">
           <div>
@@ -43,27 +43,70 @@ import Select from 'primevue/select';
 import Textarea from 'primevue/textarea';
 import Fieldset from 'primevue/fieldset';
 import SaveButton from '@/components/common/SaveButton.vue';
+import { MODALS } from '@/constants';
 import { useModalStore } from '@/stores/modal';
+import { CharacterCard, db, LLMModel } from '@/db';
+import { useResourcesStore } from '@/stores/resources';
+import { OpenAIOptions, sendOpenAiRequestStream } from '@/utils/llm';
+import { useDialogueStore } from '@/stores/dialogue';
 
 const useModal = useModalStore();
 const { modalData } = storeToRefs(useModal);
-
+const dialogueStore = useDialogueStore();
+const { chatHistoryForPrompt } = storeToRefs(dialogueStore);
 const extractorName = ref('');
 const selectedField = ref(null);
 const selectOptions = ref([]); // [{ label: 'Property 1', value: 'property1' }, ...]
 const resultText = ref('');
+const isExtracting = ref(false);
+const resourcesStore = useResourcesStore();
 
-const emit = defineEmits(['save-character']);
+const emit = defineEmits<{
+  'save-character': (character: CharacterCard) => void;
+}>();
 
-function onExtract() {
-  // Logic để thực hiện extract
+
+const props = defineProps({
+  characterId: { type: String, required: true },
+});
+
+async function onExtract() {
+  try {
+    if(!props.characterId) return;
+    if(extractorName.value.length == 0) return;
+    const llmModel = db.LLMModels.findOne({ isDefault: true }) as LLMModel;
+    if(!llmModel) return;
+    if(chatHistoryForPrompt.value.length == 0) return;
+    isExtracting.value = true;
+    
+    let extractorPrompt = resourcesStore.extractorCharacterPrompt.replace(/{{character_name_to_extract}}/g, extractorName.value);
+    extractorPrompt = extractorPrompt.replace(/{{history_chat}}/g, chatHistoryForPrompt.value);
+    console.log(extractorPrompt);
+    const options: OpenAIOptions = {
+            baseURL: llmModel.baseUrl,
+            apiKey: llmModel.apiKey,
+            data: {
+                model: llmModel.modelName,
+                messages: [
+                    { role: 'user', content: extractorPrompt },
+                ],
+                stream: true,
+                temperature: 0.2,
+                top_p: 0.1,
+            }
+        };
+        resultText.value = '';
+        await sendOpenAiRequestStream(options, (chunk: string) => {
+            resultText.value += chunk;
+        });
+        isExtracting.value = false;
+  } catch (error) {
+    console.error(error);
+  } finally{
+    isExtracting.value = false;
+  }
 }
 function handleSave() {
-  emit('save-character', {
-    extractorName: extractorName.value,
-    selectedField: selectedField.value,
-    resultText: resultText.value
-  });
   closeModal();
 }
 function closeModal() {

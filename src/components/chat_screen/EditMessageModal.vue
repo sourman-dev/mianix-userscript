@@ -1,6 +1,6 @@
 <template>
   <Dialog 
-    :visible="useModal.isModalOpen" 
+    :visible="useModal.isModalOpen(MODALS.EDIT_MESSAGE)" 
     @update:visible="(value) => { if (!value) closeModal() }" 
     @hide="closeModal"
     modal 
@@ -35,7 +35,8 @@ import { storeToRefs } from 'pinia'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import SaveButton from '@/components/common/SaveButton.vue'
-import { useModalStore } from '@/stores/modal'
+import { useModalStore } from '@/stores/modal';
+import { MODALS } from '@/constants';
 
 const useModal = useModalStore()
 const { modalData } = storeToRefs(useModal)

@@ -8,7 +8,18 @@ export const useModalStore = defineStore('modal', {
   }),
   
   getters: {
-    isModalOpen: (state) => Object.values(MODALS).includes(state.currentModal)
+    isModalOpen: (state) => {
+      return (modalName: string): boolean => {
+        console.log('currentModal', state.currentModal)
+        if(!state.currentModal) {
+          return false
+        }
+        if(modalName) {
+          return modalName === state.currentModal
+        }
+        return Object.values(MODALS).includes(state.currentModal)
+      }
+    }
   },
   
   actions: {
@@ -20,6 +31,6 @@ export const useModalStore = defineStore('modal', {
     closeModal() {
       this.currentModal = ''
       this.modalData = null
-    }
+    },
   }
 })

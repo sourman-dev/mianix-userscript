@@ -1,6 +1,6 @@
 <template>
   <Dialog
-    :visible="useModal.isModalOpen"
+    :visible="useModal.isModalOpen(MODALS.CHARACTER_IMPORT)"
     modal
     header="Import Character"
     :class="'character-import-dialog'"
@@ -48,7 +48,8 @@
 <script setup lang="ts">
 import Dialog from 'primevue/dialog';
 import Button from 'primevue/button';
-import { onMounted, defineEmits, ref, watch } from 'vue';
+import { MODALS} from '@/constants';
+import { onMounted, defineEmits, ref } from 'vue';
 import { parseCharacterCard } from '@/utils/character-parser';
 import { useModalStore } from '@/stores/modal';
 import { fileSizeHuman } from '@/utils/common';

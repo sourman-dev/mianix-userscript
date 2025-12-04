@@ -27,6 +27,9 @@ export const useResourcesStore = defineStore('resources', {
   }),
   getters: {
     llmProviders_NameAndBaseUrl: (state): LLMProviderNameBaseUrl[] => {
+      if (!state.llmProviders || !Array.isArray(state.llmProviders)) {
+        return [];
+      }
       return (state.llmProviders as any[]).map((provider) => ({
         name: provider.name,
         baseUrl: provider.baseUrl,

@@ -5,10 +5,11 @@ import CharacterTranslate from '@/components/character_cards/Translate.vue'
 import ChatScreen from '@/components/chat_screen/ChatScreen.vue'
 import LlmModelsList from '@/components/llm_models/LLMIndex.vue'
 import PresetConfig from '@/components/PresetConfig.vue'
+import ProfileList from '@/components/profiles/ProfileList.vue'
 
 export const useScreenStore = defineStore('screen', {
   state: () => ({
-    currentScreen: localStorage.getItem('currentScreen') || SCREENS.CHARACTER_LIST,
+    currentScreen: localStorage.getItem('currentScreen') || SCREENS.PROFILE_LIST,
     screenPayload: null as any,
   }),
   
@@ -21,6 +22,8 @@ export const useScreenStore = defineStore('screen', {
   getters: {
     currentComponent: (state) => {
       switch (state.currentScreen) {
+        case SCREENS.PROFILE_LIST:
+          return ProfileList;
         case SCREENS.CHARACTER_LIST:
           return CharacterList;
         case SCREENS.CHARACTER_TRANSLATE:
@@ -32,7 +35,7 @@ export const useScreenStore = defineStore('screen', {
         case SCREENS.PRESETS_CONFIG:
           return PresetConfig;
         default:
-          return CharacterList;
+          return ProfileList;
       }
     }
   },

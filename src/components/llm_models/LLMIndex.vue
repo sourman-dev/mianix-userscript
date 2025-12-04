@@ -91,6 +91,7 @@ async function saveModel(modelData: Omit<LLMModel, 'id'>) {
     const newModel = {
       // id: crypto.randomUUID(),
       ...modelData,
+      modelType: modelData.modelType || 'chat', // Ensure modelType has default
       createdAt: Date.now(),
     }
     db.LLMModels.insert(newModel)
@@ -110,51 +111,49 @@ async function saveModel(modelData: Omit<LLMModel, 'id'>) {
 
 async function toggleDefault(_model: LLMModel, isForce: boolean = false) {
   try {
-    if(_model.isDefault || isForce){
-      if(isForce){
-        db.LLMModels.updateOne({id: _model.id}, {
+    if (_model.isDefault || isForce) {
+      if (isForce) {
+        db.LLMModels.updateOne({ id: _model.id }, {
           $set: {
             isDefault: true
           }
         })
       }
-      db.LLMModels.updateMany({id: {$ne: _model.id}}, {
+      // 🔧 FIX: Chỉ reset default của models CÙNG modelType
+      db.LLMModels.updateMany({
+        id: { $ne: _model.id },
+        modelType: _model.modelType // ← Chỉ reset models cùng type
+      }, {
         $set: {
           isDefault: false
         }
       })
-    }else{
-      if(db.LLMModels.find({isDefault: true}).count() === 0){
-        const firstModel = db.LLMModels.findOne({}, {
-         sort: {createdAt: -1}
-        }) as LLMModel
-        db.LLMModels.updateOne({id: firstModel.id}, {
-          $set: {
-            isDefault: true
-          }
-        })
+    } else {
+      // 🔧 FIX: Kiểm tra default theo modelType
+      const defaultModelOfType = db.LLMModels.findOne({
+        modelType: _model.modelType,
+        isDefault: true
+      }) as LLMModel | null
+
+      if (!defaultModelOfType) {
+        // Nếu không có default model nào cho type này, set model đầu tiên làm default
+        const firstModelOfType = db.LLMModels.findOne({
+          modelType: _model.modelType
+        }, {
+          sort: { createdAt: -1 }
+        }) as LLMModel | null
+
+        if (firstModelOfType) {
+          db.LLMModels.updateOne({ id: firstModelOfType.id }, {
+            $set: {
+              isDefault: true
+            }
+          })
+        }
       }
     }
-    // console.log(_model, isForce)
-    // await db.transaction('rw', db.llmModels, async () => {
-    //   if (_model.isDefault || isForce) {
-    //     if(isForce){
-    //       await db.llmModels.update(_model.id, { isDefault: true })
-    //     }
-    //     await db.llmModels.where('id').notEqual(_model.id).modify({ isDefault: false })
-    //   } else {
-    //     const allModels = await db.llmModels.toArray()
-    //     if (!allModels.find((m) => m.isDefault === true)) {
-    //       const firstModel = allModels[0];
-    //       await db.llmModels.where('id').equals(firstModel.id).modify({ isDefault: true })
-    //     }
-    //   }
-    //   await loadModels()
-    // })
-    
-    // Reload models to update the list
-    
-    console.log("Transaction committed")
+
+    console.log(`✅ Default toggled for ${_model.modelType} model:`, _model.name)
   } catch (error) {
     if (error instanceof Dexie.ModifyError) {
       console.error(error.failures.length + " items failed to modify")
@@ -167,7 +166,7 @@ async function toggleDefault(_model: LLMModel, isForce: boolean = false) {
 
 async function deleteModel(model: LLMModel) {
   try {
-    db.LLMModels.removeOne({id: model.id})
+    db.LLMModels.removeOne({ id: model.id })
     // await loadModels()
     console.log('Model deleted successfully:', model.name)
   } catch (error) {
@@ -182,7 +181,7 @@ async function updateModel(modelData: LLMModel) {
 
     // If this model is set as default, update all other models to not be default
     // await toggleDefault(modelData)
-    db.LLMModels.updateOne({id: modelData.id}, {
+    db.LLMModels.updateOne({ id: modelData.id }, {
       $set: modelData
     })
     console.log('Model updated successfully:', modelData.name)
@@ -255,10 +254,21 @@ defineExpose({
             <div class="flex-1">
               <h3 class="font-medium text-gray-900 dark:text-white">{{ model.name }}</h3>
               <p class="text-sm text-gray-500 dark:text-gray-400">{{ model.modelName }}</p>
-              <div class="mt-1">
+              <div class="mt-1 flex gap-2">
                 <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
                   :class="model.llmProvider === 'openai' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'">
                   {{ model.llmProvider }}
+                </span>
+                <span v-if="model.modelType" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                  :class="{
+                    'bg-purple-100 text-purple-800': model.modelType === 'chat',
+                    'bg-orange-100 text-orange-800': model.modelType === 'extraction',
+                    'bg-cyan-100 text-cyan-800': model.modelType === 'embedding'
+                  }">
+                  <span v-if="model.modelType === 'chat'">💬</span>
+                  <span v-else-if="model.modelType === 'extraction'">🧠</span>
+                  <span v-else-if="model.modelType === 'embedding'">🔢</span>
+                  {{ model.modelType }}
                 </span>
               </div>
             </div>
@@ -279,8 +289,7 @@ defineExpose({
           </div>
           <div class="flex items-center justify-between">
             <span class="text-sm text-gray-600 dark:text-gray-300">Default Model</span>
-            <ToggleSwitch :model-value="model.isDefault"
-              @update:model-value="toggleDefault(model, true)" />
+            <ToggleSwitch :model-value="model.isDefault" @update:model-value="toggleDefault(model, true)" />
           </div>
         </div>
       </div>

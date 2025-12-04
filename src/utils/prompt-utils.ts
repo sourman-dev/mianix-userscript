@@ -71,17 +71,18 @@ function getRelevantWorldBookEntries(
 
 /**
  * Xây dựng prompt cuối cùng để gửi đến LLM.
- * Đây là hàm tổng hợp chính, đã được cập nhật để nhận `chatHistoryString`.
+ * Đây là hàm tổng hợp chính, đã được cập nhật để nhận `chatHistoryString` và `relevantMemories`.
  * @param characterData - Dữ liệu nhân vật đã được chuẩn hóa.
- * @param chatHistoryString - Lịch sử các tin nhắn gần đây dưới dạng một chuỗi duy nhất.
+ * @param chatHistoryString - Lịch sử các tin nhắn gần đây (10 tin nhắn) dưới dạng một chuỗi duy nhất.
  * @param currentUserInput - Tin nhắn mới nhất của người dùng.
  * @param userProfile - Hồ sơ của người dùng (tên, etc.).
  * @param prompts - Các prompt mẫu từ resources.
+ * @param relevantMemories - Các ký ức liên quan được trích xuất từ RAG (optional).
  * @returns Một object chứa systemPrompt và userPrompt hoàn chỉnh.
  */
 export function buildFinalPrompt(
   characterData: CharacterCard,
-  chatHistoryString: string, // <-- THAY ĐỔI QUAN TRỌNG: nhận chuỗi thay vì mảng
+  chatHistoryString: string, // <-- Chỉ chứa 10 tin nhắn gần nhất
   currentUserInput: string,
   userProfile: { name: string },
   prompts: {
@@ -91,7 +92,8 @@ export function buildFinalPrompt(
     outputFormatPrompt: string;
   },
   responseInstructionHint?: string,
-  responseLength? : number
+  responseLength? : number,
+  relevantMemories?: string // <-- THÊM MỚI: Ký ức liên quan từ RAG
 ): { systemPrompt: string; userPrompt: string } {
   
   // Đảm bảo dữ liệu nhân vật được xử lý đúng cách
@@ -140,7 +142,17 @@ export function buildFinalPrompt(
     </response_instructions>
   ` : '';
   
+  // 🆕 Thêm phần ký ức dài hạn nếu có
+  const longTermMemory = relevantMemories ? `
+    <long_term_memory>
+    **Thông tin quan trọng từ các cuộc trò chuyện trước:**
+    ${relevantMemories}
+    </long_term_memory>
+  ` : '';
+  
   systemPrompt += `
+    ${longTermMemory}
+
     <character_description>
     ${worldBookBeforeChar}
     ${charDescription}

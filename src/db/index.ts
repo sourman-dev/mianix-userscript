@@ -5,6 +5,8 @@ import createMonkeyAdapter from "./monkey";
 import { CharacterCardData } from "@/types/character";
 import { mergeObjects } from "@/utils/common";
 
+export type ModelType = 'chat' | 'embedding' | 'extraction';
+
 export type LLMModel = {
   id: string;
   name: string;
@@ -13,6 +15,7 @@ export type LLMModel = {
   modelName: string;
   llmProvider: string;
   isDefault: boolean;
+  modelType: ModelType; // 🆕 Phân loại model: chat, extraction, embedding
   createdAt: number;
 };
 
@@ -30,6 +33,60 @@ export type StorageType = {
   type: "image" | "audio";
 };
 
+export enum MemoryType {
+  FACT = "fact",
+  EVENT = "event",
+  PREFERENCE = "preference",
+  RELATIONSHIP = "relationship",
+}
+
+export type MemoryEntryType = {
+  id: string;
+  characterId: string; // Để phân biệt ký ức của nhân vật nào
+  content: string;     // Nội dung ký ức (text)
+  type: MemoryType;
+  tags: string[];
+  importance: number;  // 0-1
+  embedding: number[]; // Vector embedding (mảng số float)
+  relatedMessageId?: string; // ID của message tạo ra memory này (để xóa khi replay)
+  createdAt: number;
+  lastAccessed: number;
+};
+
+// 2. Class Wrapper
+export class MemoryEntry {
+  id: string;
+  characterId: string;
+  content: string;
+  type: MemoryType;
+  tags: string[];
+  importance: number;
+  embedding: number[];
+  createdAt: number;
+  lastAccessed: number;
+
+  constructor(data: MemoryEntryType) {
+    this.id = data.id;
+    this.characterId = data.characterId;
+    this.content = data.content;
+    this.type = data.type;
+    this.tags = data.tags || [];
+    this.importance = data.importance || 0.5;
+    this.embedding = data.embedding || [];
+    this.createdAt = data.createdAt;
+    this.lastAccessed = data.lastAccessed;
+  }
+}
+
+// 3. Khởi tạo Collection
+const Memories = new Collection<MemoryEntryType>({
+  name: "Memories",
+  reactivity: vueReactivityAdapter,
+  persistence: createIndexedDBAdapter("Memories"), // Nên dùng IndexedDB vì Vector khá nặng
+  primaryKeyGenerator: () => crypto.randomUUID(),
+  transform: (item) => new MemoryEntry(item),
+});
+
 export class CharacterCard {
   id: string;
   data: Partial<CharacterCardData>;
@@ -44,6 +101,9 @@ export class CharacterCard {
     this.createdAt = data.createdAt || Date.now();
     // Storage.insert({ id: this.id, file: data.imageFile, type: "image" });
   }
+
+  
+
   getData() {
     if (this.isUseTranslated) {
       this.data = mergeObjects(this.data, this.dataTranslated || {});
@@ -89,6 +149,7 @@ export type DialogType = {
   id: string;
   createdAt: number;
   currentNodeId: string; // <-- THÊM VÀO: ID của node hiện tại trong cây
+  profileId?: string; // ID của user profile được chọn cho dialogue này
   llmOptions: LLMOptions;
 };
 export interface LLMOptions {
@@ -215,18 +276,26 @@ const LLMModels = new Collection<LLMModel>({
   primaryKeyGenerator: () => crypto.randomUUID(),
 });
 
-if (UserProfiles.find().count() === 0) {
-  UserProfiles.insert({
-    id: crypto.randomUUID(),
-    name: "Roger",
-    appearance: "Một người đàn ông cao lớn với mái tóc đen và đôi mắt nâu.",
-    personality: "Tính cách trầm lặng, hay quan sát, nhưng rất quyết đoán.",
-    background: "Là một cựu binh, đang tìm kiếm sự bình yên ở thành phố này.",
-    currentStatus: "Đang cảm thấy mệt mỏi sau một ngày dài.",
-    inventory: ["Một chiếc chìa khóa cũ", "Bức ảnh mờ"],
-    createdAt: Date.now(),
-  });
-}
+// Initialize default profile for first-time users
+// IMPORTANT: Wrap in setTimeout to wait for minimongo to load from storage
+setTimeout(() => {
+  const existingProfiles = UserProfiles.find().fetch();
+  if (existingProfiles.length === 0) {
+    console.log('📝 Creating default profile (first time)');
+    UserProfiles.insert({
+      id: crypto.randomUUID(),
+      name: "Roger",
+      appearance: "Một người đàn ông cao lớn với mái tóc đen và đôi mắt nâu.",
+      personality: "Tính cách trầm lặng, hay quan sát, nhưng rất quyết đoán.",
+      background: "Là một cựu binh, đang tìm kiếm sự bình yên ở thành phố này.",
+      currentStatus: "Đang cảm thấy mệt mỏi sau một ngày dài.",
+      inventory: ["Một chiếc chìa khóa cũ", "Bức ảnh mờ"],
+      createdAt: Date.now(),
+    });
+  } else {
+    console.log(`✅ Found ${existingProfiles.length} existing profiles, skipping default creation`);
+  }
+}, 100); // Wait 100ms for storage to load
 
 export const db = {
   CharacterCards,
@@ -235,4 +304,5 @@ export const db = {
   DialogueMessages,
   Dialogues,
   UserProfiles,
+  Memories,
 };

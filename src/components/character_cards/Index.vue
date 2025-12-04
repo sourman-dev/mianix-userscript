@@ -33,7 +33,8 @@
         </template>
         <template #footer>
           <div class="flex gap-3 mt-1 justify-end">
-            <Button icon="pi pi-comment" severity="secondary" outlined rounded aria-label="Chat" @click="handleToChat(characterCard.id)"/>
+            <Button icon="pi pi-comment" severity="secondary" outlined rounded aria-label="Chat"
+              @click="handleToChat(characterCard.id)" />
             <Button icon="pi pi-language" severity="secondary" outlined rounded
               @click="handleCharacterEdit(characterCard.id)" aria-label="Edit" />
             <Button icon="pi pi-arrow-circle-down" severity="success" rounded
@@ -46,6 +47,7 @@
     </div>
 
     <CharacterImport @character-imported="handleCharacterImported" />
+    <ProfileSelectorModal @select-profile="handleProfileSelected" />
   </div>
 </template>
 
@@ -55,6 +57,7 @@ import { useScreenStore } from '@/stores/screen';
 import { useModalStore } from '@/stores/modal';
 import { MODALS, SCREENS } from '@/constants';
 import CharacterImport from '@/components/character_cards/ModalImport.vue';
+import ProfileSelectorModal from '@/components/profiles/ProfileSelectorModal.vue';
 import CharacterAvatar from '@/components/character_cards/CharacterAvatar.vue';
 import Card from 'primevue/card';
 import { ref, watchEffect } from 'vue';
@@ -143,53 +146,84 @@ const handleCharacterExport = async (id: string) => {
   }
 }
 
+const pendingCharacterId = ref<string | null>(null);
+
 const handleToChat = (characterId: string) => {
-  // // 1. Kiểm tra xem cuộc hội thoại (Dialogue) đã tồn tại chưa
-  // const existingDialogue = db.Dialogues.findOne({ id: characterId }) as Dialogue | null;
-  
-  // // 2. Nếu chưa tồn tại, tạo một bản ghi Dialogue mới
-  // if (!existingDialogue) {
-  //   console.log(`No dialogue found for character ${characterId}. Creating a new one.`);
+  // 1. Kiểm tra xem cuộc hội thoại (Dialogue) đã tồn tại chưa
+  const existingDialogue = db.Dialogues.findOne({ id: characterId }) as Dialogue | null;
 
-  //   // Lấy model LLM mặc định để thiết lập cho cuộc hội thoại mới
-  //   // const defaultLLMModel = db.LLMModels.findOne({ isDefault: true }) as LLMModel | null;
-
-  //   const newDialouge = db.Dialogues.insert({
-  //     id: characterId,
-  //     createdAt: Date.now(),
-  //     // Bắt đầu từ node gốc, chưa có tin nhắn nào
-  //     currentNodeId: 'root', 
-  //     // Thiết lập các tùy chọn LLM mặc định cho cuộc hội thoại này
-  //     llmOptions: {
-  //       temperature: 0.7,
-  //       maxTokens: 1000,
-  //       contextWindow: 4000,
-  //       // (Tùy chọn) Bạn có thể lưu cả modelId nếu muốn
-  //       // modelId: defaultLLMModel?.id, 
-  //     }
-  //   });
-  //   const characterCard = db.CharacterCards.findOne({ id: characterId }) as CharacterCard;
-  //   characterCard.getData();
-  //   let firstGreeting = characterCard.getGreeting() as string;
-  //   firstGreeting = adaptText(firstGreeting);
-  //   const newMessage = db.DialogueMessages.insert({
-  //     id: crypto.randomUUID(),
-  //     dialogueId: newDialouge.id,
-  //     parentId: 'root',
-  //     userInput: '',
-  //     assistantResponse: firstGreeting,
-  //     status: 'completed',
-  //     createdAt: Date.now(),
-  //   })
-  //   console.log('newMessage: ', newMessage);
-  // } else {
-  //   console.log(`Found existing dialogue for character ${characterId}.`);
-  // }
+  if (existingDialogue) {
+    // Dialogue đã tồn tại, load và chuyển đến chat
+    console.log(`Found existing dialogue for character ${characterId}`);
     dialogueStore.loadDialogue(characterId);
-  // 3. Chuyển người dùng đến màn hình chat
-  // Màn hình chat (ChatScreen.vue) sẽ chịu trách nhiệm tải dữ liệu hội thoại từ DB,
-  // và hiển thị lời chào nếu đó là lần đầu tiên (tức là không có tin nhắn nào khác ngoài gốc).
+    useScreen.setScreen(SCREENS.CHAT, { id: characterId });
+  } else {
+    // Chưa có dialogue, cần chọn profile trước
+    console.log(`No dialogue found for character ${characterId}. Need to select profile.`);
+    pendingCharacterId.value = characterId;
+    useModal.openModal(MODALS.PROFILE_SELECTOR);
+  }
+}
+
+// Handle khi user chọn profile từ ProfileSelectorModal
+const handleProfileSelected = async (profile: UserProfile) => {
+  if (!pendingCharacterId.value) return;
+
+  const characterId = pendingCharacterId.value;
+  console.log(`Creating dialogue for character ${characterId} with profile ${profile.name}`);
+
+  // Tạo first greeting message ID trước
+  const firstMessageId = crypto.randomUUID();
+
+  // Tạo dialogue mới với profileId và currentNodeId trỏ đến first message
+  db.Dialogues.insert({
+    id: characterId,
+    createdAt: Date.now(),
+    currentNodeId: firstMessageId, // ← Trỏ đến first message
+    profileId: profile.id,
+    llmOptions: {
+      temperature: 0.7,
+      maxTokens: 1000,
+      contextWindow: 4000,
+    }
+  });
+
+  // Tạo first greeting message
+  const characterCard = db.CharacterCards.findOne({ id: characterId }) as CharacterCard;
+  characterCard.getData();
+  let firstGreeting = characterCard.getGreeting() as string;
+  firstGreeting = adaptText(firstGreeting);
+
+  // Replace {{user}} with profile.name in firstGreeting
+  firstGreeting = firstGreeting.replace(/\{\{user\}\}/gi, profile.name);
+  firstGreeting = firstGreeting.replace(/\{user\}/gi, profile.name);
+
+  db.DialogueMessages.insert({
+    id: firstMessageId, // ← Dùng ID đã tạo
+    dialogueId: characterId, // ← Dùng characterId (dialogue ID)
+    parentId: 'root',
+    userInput: '',
+    assistantResponse: firstGreeting,
+    status: 'completed',
+    createdAt: Date.now(),
+  });
+
+  console.log('✅ Created dialogue and message:', {
+    dialogueId: characterId,
+    messageId: firstMessageId,
+    profileId: profile.id,
+    firstGreeting: firstGreeting.substring(0, 50) + '...'
+  });
+
+  // ⏰ Wait for insert to complete
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  // Load dialogue và chuyển đến chat
+  dialogueStore.loadDialogue(characterId);
   useScreen.setScreen(SCREENS.CHAT, { id: characterId });
+
+  // Reset pending
+  pendingCharacterId.value = null;
 }
 
 watchEffect((onCleanup) => {

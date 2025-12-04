@@ -7,6 +7,8 @@ import {
   type DialogueMessageType,
 } from "@/db";
 import { adaptText } from "@/utils/msg-process";
+import { MemoryService } from "@/services/memory-service"; // Import mới
+import { getEmbeddingModel, getExtractionModel } from "@/utils/model-helpers";
 import { LLMOptions } from "@/db";
 
 interface DialogueState {
@@ -14,6 +16,7 @@ interface DialogueState {
   currentMessages: DialogueMessageType[];
   suggestedPrompts: Record<string, string[]>;
   currentLLMOptions: Record<string, LLMOptions>;
+  relevantMemories: string;
 }
 
 export const useDialogueStore = defineStore("dialogue", {
@@ -21,7 +24,8 @@ export const useDialogueStore = defineStore("dialogue", {
     currentDialogue: null,
     currentMessages: [],
     suggestedPrompts: {},
-    currentLLMOptions: {}
+    currentLLMOptions: {},
+    relevantMemories: "" as string,
   }),
   getters: {
     // Getter quan trọng: Lấy đường dẫn từ node hiện tại về gốc
@@ -33,7 +37,7 @@ export const useDialogueStore = defineStore("dialogue", {
       const messagesMap = new Map(state.currentMessages.map((m) => [m.id, m]));
       let currentNodeId: string | null = state.currentDialogue.currentNodeId;
 
-      // // Debug logs
+      // Debug logs (disabled - uncomment if needed)
       // console.log("🔍 Debug currentPath:");
       // console.log("currentNodeId:", currentNodeId);
       // console.log("messagesMap size:", messagesMap.size);
@@ -42,6 +46,8 @@ export const useDialogueStore = defineStore("dialogue", {
       //   Array.from(messagesMap.values()).map((m) => ({
       //     id: m.id,
       //     parentId: m.parentId,
+      //     userInput: m.userInput.substring(0, 20),
+      //     assistantResponse: m.assistantResponse.substring(0, 50),
       //   }))
       // );
 
@@ -59,7 +65,7 @@ export const useDialogueStore = defineStore("dialogue", {
         }
       }
 
-      console.log("✅ Final path length:", path.length);
+      // console.log("✅ Final path length:", path.length);
       return path;
     },
     // Getter chỉ lấy tối đa 10 tin nhắn mới nhất cho việc hiển thị, 
@@ -73,9 +79,13 @@ export const useDialogueStore = defineStore("dialogue", {
       );
     },
 
+    // 🆕 Getter mới: Chỉ lấy 10 tin nhắn gần nhất để gửi cho LLM (RAG approach)
     chatHistoryForPrompt(_state): string {
       const path = (this as any).completedPath as DialogueMessageType[];
-      return path
+      // Chỉ lấy 10 tin nhắn gần nhất
+      const recentMessages = path.slice(-10);
+      
+      return recentMessages
         .map((node) => {
           let history = "";
           if (node.userInput) {
@@ -90,6 +100,41 @@ export const useDialogueStore = defineStore("dialogue", {
     },
   },
   actions: {
+    async prepareContext(userInput: string) {
+        if (!this.currentDialogue) return;
+        
+        // Skip RAG if no embedding model configured
+        const embeddingModel = getEmbeddingModel();
+        if (!embeddingModel) {
+            console.log('⏭️ Skipping RAG: No embedding model configured');
+            this.relevantMemories = '';
+            return;
+        }
+        
+        // Không cần truyền model nữa, service tự lấy embedding model
+        this.relevantMemories = await MemoryService.retrieveRelevantMemories(
+            this.currentDialogue.id,
+            userInput
+        );
+    },
+    async handlePostResponseProcess(userInput: string, aiResponse: string, messageId?: string) {
+        if (!this.currentDialogue) return;
+        
+        // Skip memory extraction if no extraction model
+        const extractionModel = getExtractionModel();
+        if (!extractionModel) {
+            console.log('⏭️ Skipping memory extraction: No extraction model configured');
+            return;
+        }
+        
+        // Pass messageId for cleanup on replay
+        MemoryService.extractMemories(
+            this.currentDialogue.id,
+            userInput,
+            aiResponse,
+            messageId // ← Pass messageId
+        );
+    },
     // Tải dữ liệu của một cuộc hội thoại vào store
     loadDialogue(characterId: string) {
       this.currentDialogue = db.Dialogues.findOne({

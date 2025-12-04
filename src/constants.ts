@@ -1,4 +1,5 @@
 export const SCREENS = {
+  PROFILE_LIST: "profile-list",
   CHARACTER_LIST: "character-list",
   CHARACTER_TRANSLATE: "character-translate",
   CHAT: "chat",
@@ -11,6 +12,8 @@ export const MODALS = {
   CHARACTER_IMPORT: "character_import",
   EDIT_MESSAGE: "edit_message",
   EXTRACTOR_CHARACTER: 'extractor_character',
+  USER_PROFILE: 'user_profile',
+  PROFILE_SELECTOR: 'profile_selector',
 };
 export const USCR_NAME = "Mianix";
 export const SERVER_BASE_URL = "https://mianix.sourman.dev";

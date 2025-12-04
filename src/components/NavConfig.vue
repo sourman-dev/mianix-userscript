@@ -33,6 +33,10 @@ const toggle = (event: Event) => {
 
 const menuItems = [
     {
+        label: t('nav.profiles'),
+        command: () => screenStore.setScreen(SCREENS.PROFILE_LIST),
+    },
+    {
         label: t('nav.characters'),
         command: () => screenStore.setScreen(SCREENS.CHARACTER_LIST),
     },

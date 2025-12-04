@@ -22,8 +22,9 @@
                                         severity="danger" text rounded size="small" @click="handleRemoveDialogue" />
                                 </div>
                                 <div class="flex items-center space-x-1">
-                                    <Button v-tooltip.bottom="'Trích xuất nhân vật'" icon="pi pi-users"
-                                        severity="help" text rounded size="small" @click="modalStore.openModal(MODALS.EXTRACTOR_CHARACTER)" />
+                                    <Button v-tooltip.bottom="'Trích xuất nhân vật'" icon="pi pi-users" severity="help"
+                                        text rounded size="small"
+                                        @click="modalStore.openModal(MODALS.EXTRACTOR_CHARACTER)" />
                                 </div>
                             </div>
                         </div>
@@ -121,7 +122,7 @@
             </div>
         </footer>
         <EditMessageModal @save-message="handleEditMessageModal" />
-        <ExtractorCharacterModal @save-character="handleExtractorCharacterModal" />
+        <ExtractorCharacterModal :characterId="currentCharacter?.id || ''" />
     </div>
 </template>
 
@@ -141,7 +142,8 @@ import { useModalStore } from '@/stores/modal';
 import { CharacterCard, db, LLMModel, UserProfile } from '@/db';
 import { formatMessageContent } from '@/utils/msg-process';
 import { buildFinalPrompt } from '@/utils/prompt-utils';
-import { OpenAIOptions, sendOpenAiRequestStream } from '@/utils/llm';
+import { OpenAIOptions } from '@/utils/llm';
+import { sendOpenAiRequestFetchStream } from '@/utils/llm-fetch'; // 🔧 Use native fetch for streaming
 import { SCREENS, MODALS } from '@/constants';
 import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 import LLMOptionsModal from '@/components/llm_models/LLMOptionsModal.vue';
@@ -197,8 +199,10 @@ const scrollToBottom = () => {
     });
 };
 
-const handleExtractorCharacterModal = (character: CharacterCard) => {
-    currentCharacter.value = character;
+const handleExtractorCharacterModal = (extractorName: string) => {
+    if (extractorName.length == 0) return;
+    // thay thế {{character_name_to_extract}} thành extractorName
+
 }
 
 const handleChangeLLMOptions = (llmOptions: any) => {
@@ -230,6 +234,10 @@ const sendRequestToLLM = async (promptMessage: string) => {
         currentLLMModel.value = db.LLMModels.findOne({ isDefault: true }) as LLMModel | null;
         if (!currentLLMModel.value || !currentCharacter.value) return '';
         const llmOptions = dialogueStore.currentLLMOptions[currentCharacter.value.id];
+
+        // 🆕 Lấy ký ức liên quan từ store (đã được chuẩn bị trước)
+        const relevantMemories = dialogueStore.relevantMemories;
+
         const { systemPrompt, userPrompt } = buildFinalPrompt(
             currentCharacter.value,
             chatHistoryForPrompt.value as string,
@@ -242,7 +250,8 @@ const sendRequestToLLM = async (promptMessage: string) => {
                 outputFormatPrompt: resourcesStore.outputFormatPrompt,
             },
             selectedMoreMode.value?.value,
-            llmOptions?.responseLength
+            llmOptions?.responseLength,
+            relevantMemories // 🆕 Truyền ký ức vào prompt
         );
 
         isSending.value = true;
@@ -266,7 +275,7 @@ const sendRequestToLLM = async (promptMessage: string) => {
             }
         };
 
-        await sendOpenAiRequestStream(options, (chunk: string) => {
+        await sendOpenAiRequestFetchStream(options, (chunk: string) => {
             llmResponse.value += chunk;
             scrollToBottom();
         });
@@ -313,6 +322,9 @@ const handleSendMessage = async () => {
     const newUserInput = userInput.value;
     userInput.value = ''; // Clear input field immediately
 
+    // 🆕 BƯỚC 0: Chuẩn bị context - Tìm ký ức liên quan
+    await dialogueStore.prepareContext(newUserInput);
+
     // 🆕 BƯỚC 1: Thêm user input với status pending ngay lập tức
     const pendingNodeId = dialogueStore.addInput(newUserInput);
 
@@ -326,6 +338,9 @@ const handleSendMessage = async () => {
         const aiResponseRaw = await sendRequestToLLM(newUserInput);
         if (aiResponseRaw) {
             handleAIResponse(aiResponseRaw, pendingNodeId);
+
+            // 🆕 BƯỚC 3: Trích xuất ký ức từ cuộc hội thoại (chạy ngầm)
+            dialogueStore.handlePostResponseProcess(newUserInput, aiResponseRaw, pendingNodeId);
         }
     } catch (error) {
         console.error('❌ AI request failed:', error);
@@ -367,9 +382,15 @@ async function handleMessageButtonClick({ buttonName, role, messageId }: { butto
         const userInput = dialogueStore.retryMessage(messageId);
         if (userInput) {
             try {
+                // 🆕 Chuẩn bị context trước khi retry
+                await dialogueStore.prepareContext(userInput);
+
                 const aiResponseRaw = await sendRequestToLLM(userInput);
                 if (aiResponseRaw) {
                     handleAIResponse(aiResponseRaw, messageId);
+
+                    // 🆕 Trích xuất ký ức sau khi retry thành công
+                    dialogueStore.handlePostResponseProcess(userInput, aiResponseRaw, messageId);
                 }
             } catch (error) {
                 console.error('❌ Retry failed:', error);
