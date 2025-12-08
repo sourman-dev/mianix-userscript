@@ -5,6 +5,7 @@ export const SCREENS = {
   CHAT: "chat",
   MODELS_LIST: "models-list",
   PRESETS_CONFIG: "preset-config",
+  WORLDBOOK_EDITOR: "worldbook-editor",
 };
 
 export const MODALS = {

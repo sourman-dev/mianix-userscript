@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import MainLayout from '@/components/MainLayout.vue'
 import ConfirmDialog from 'primevue/confirmdialog';
+import Toast from 'primevue/toast';
 import LoadingScreen from '@/components/common/LoadingScreen.vue';
 import ProfileModal from '@/components/profiles/ProfileModal.vue';
 import { onMounted } from 'vue';
@@ -27,6 +28,7 @@ onMounted(async () => {
   <div v-else>
     <MainLayout />
     <ConfirmDialog />
+    <Toast />
     <ProfileModal />
   </div>
 </template>

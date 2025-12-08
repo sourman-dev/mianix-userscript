@@ -14,15 +14,18 @@ export interface WorldBookEntry {
   // Thuộc tính nâng cao để kiểm soát việc chèn vào prompt
   position?: 'before_char' | 'after_char' | 'before_input' | 'after_input';
   insertionOrder?: number; // Ưu tiên chèn, số nhỏ hơn được ưu tiên
-  
+
   // Thuộc tính cho logic nâng cao
   selective?: boolean; // Chỉ kích hoạt nếu key được tìm thấy trong ngữ cảnh gần đây
   constant?: boolean;  // Luôn được chèn vào prompt nếu enabled
   useRegex?: boolean;  // Sử dụng keys như các biểu thức chính quy (regex)
-  
+
   // Các thuộc tính kế thừa từ SillyTavern để tương thích
   depth?: number;
   secondaryKeys?: string[];
+
+  // RAG embedding for semantic search
+  embedding?: number[]; // Vector for semantic search
 }
 
 /**

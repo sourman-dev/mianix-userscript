@@ -49,7 +49,7 @@
 import Dialog from 'primevue/dialog';
 import Button from 'primevue/button';
 import { MODALS} from '@/constants';
-import { onMounted, defineEmits, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { parseCharacterCard } from '@/utils/character-parser';
 import { useModalStore } from '@/stores/modal';
 import { fileSizeHuman } from '@/utils/common';

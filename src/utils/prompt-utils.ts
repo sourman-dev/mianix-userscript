@@ -3,6 +3,17 @@
 import type { WorldBookEntry } from '@/types/character';
 import { CharacterCard } from '@/db';
 import { adaptText } from './msg-process';
+import { getEmbeddingModel } from '@/utils/model-helpers';
+
+/**
+ * Options for worldbook retrieval with hybrid search
+ */
+export interface WorldbookRetrievalOptions {
+  limit?: number;              // Max entries to return (default: 5)
+  semanticThreshold?: number;  // Min similarity (default: 0.5)
+  useSemanticSearch?: boolean; // Enable semantic ranking (default: true)
+  characterId?: string;        // Required for semantic search
+}
 
 /**
  * Thay thế các placeholder động trong một chuỗi văn bản.
@@ -33,40 +44,157 @@ function formatWorldBookEntries(entries: WorldBookEntry[], context: { user: stri
 }
 
 /**
- * Lọc và chọn các entry World Book phù hợp với ngữ cảnh hiện tại.
- * @param worldBook - Toàn bộ World Book của nhân vật.
- * @param chatHistoryString - Lịch sử trò chuyện gần đây dưới dạng chuỗi.
- * @param currentUserInput - Tin nhắn hiện tại của người dùng.
- * @returns Một mảng các WorldBookEntry phù hợp.
+ * Calculate cosine similarity between two vectors
  */
-function getRelevantWorldBookEntries(
+function cosineSimilarity(vecA: number[], vecB: number[]): number {
+  if (!vecA.length || !vecB.length || vecA.length !== vecB.length) return 0;
+  const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
+  const magnitudeA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
+  const magnitudeB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
+  return magnitudeA && magnitudeB ? dotProduct / (magnitudeA * magnitudeB) : 0;
+}
+
+/**
+ * Hybrid retrieval: keyword pre-filter + semantic ranking + Top-K selection
+ * Falls back to keyword-only if no embeddings available
+ *
+ * @param worldBook - Toàn bộ World Book của nhân vật
+ * @param chatHistoryString - Lịch sử trò chuyện gần đây dưới dạng chuỗi
+ * @param currentUserInput - Tin nhắn hiện tại của người dùng
+ * @param options - Retrieval options (limit, threshold, etc.)
+ * @returns Promise<WorldBookEntry[]> - Các entry phù hợp đã được xếp hạng
+ */
+async function getRelevantWorldBookEntries(
   worldBook: WorldBookEntry[],
   chatHistoryString: string,
-  currentUserInput: string
-): WorldBookEntry[] {
+  currentUserInput: string,
+  options: WorldbookRetrievalOptions = {}
+): Promise<WorldBookEntry[]> {
+  const {
+    limit = 5,
+    semanticThreshold = 0.5,
+    useSemanticSearch = true,
+  } = options;
+
   if (!worldBook || worldBook.length === 0) return [];
 
-  // Kết hợp lịch sử chat và input hiện tại để tạo ngữ cảnh tìm kiếm
   const contextText = `${chatHistoryString}\nUser: ${currentUserInput}`.toLowerCase();
 
-  const relevantEntries = worldBook.filter(entry => {
-    // Luôn bao gồm các entry 'constant' và 'enabled'
-    if (entry.constant && entry.enabled) {
-      return true;
-    }
+  // Step 1: Extract constant entries (always included)
+  const constantEntries = worldBook.filter(
+    entry => entry.constant && entry.enabled !== false
+  );
 
-    // Nếu entry bị vô hiệu hóa hoặc không phải 'selective', bỏ qua
-    if (!entry.enabled || entry.selective === false) {
-      return false;
-    }
+  // Step 2: Keyword pre-filter for non-constant entries
+  const keywordCandidates = worldBook.filter(entry => {
+    if (entry.constant) return false; // Already in constantEntries
+    if (!entry.enabled || entry.selective === false) return false;
 
-    // Kiểm tra xem có key nào khớp với ngữ cảnh không
-    // Đảm bảo keys là một mảng trước khi dùng `some`
-    return Array.isArray(entry.keys) && entry.keys.some(key => contextText.includes(key.toLowerCase()));
+    return Array.isArray(entry.keys) && entry.keys.some(key => {
+      if (entry.useRegex) {
+        try {
+          return new RegExp(key, 'i').test(contextText);
+        } catch {
+          return false;
+        }
+      }
+      return contextText.includes(key.toLowerCase());
+    });
   });
 
-  // Sắp xếp các entry theo ưu tiên (insertionOrder)
-  return relevantEntries.sort((a, b) => (a.insertionOrder || 0) - (b.insertionOrder || 0));
+  // Step 3: Check if semantic search is possible
+  const hasEmbeddingModel = !!getEmbeddingModel();
+  const hasEmbeddings = keywordCandidates.some(e => e.embedding?.length);
+
+  // If no semantic search capability, fall back to keyword-only
+  if (!useSemanticSearch || !hasEmbeddingModel || !hasEmbeddings) {
+    console.log('Worldbook: Using keyword-only retrieval');
+    const result = [...constantEntries, ...keywordCandidates];
+    return result.sort((a, b) => (a.insertionOrder || 0) - (b.insertionOrder || 0));
+  }
+
+  // Step 4: Semantic ranking
+  const query = `${chatHistoryString.slice(-500)}\n${currentUserInput}`;
+  let queryEmbedding: number[] = [];
+
+  try {
+    // Generate query embedding
+    const embeddingModel = getEmbeddingModel()!;
+    let embedUrl = embeddingModel.baseUrl;
+    if (embedUrl.endsWith('/')) embedUrl = embedUrl.slice(0, -1);
+    if (!embedUrl.includes('/embeddings')) embedUrl = `${embedUrl}/embeddings`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const response = await fetch(embedUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${embeddingModel.apiKey}`,
+        },
+        body: JSON.stringify({
+          input: query,
+          model: embeddingModel.modelName,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        queryEmbedding = data.data?.[0]?.embedding || [];
+      }
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        console.warn('Worldbook: Query embedding timeout (30s)');
+      }
+    }
+  } catch (e) {
+    console.warn('Worldbook: Failed to generate query embedding, using keyword-only');
+  }
+
+  // Fallback if embedding generation failed
+  if (!queryEmbedding.length) {
+    const result = [...constantEntries, ...keywordCandidates];
+    return result.sort((a, b) => (a.insertionOrder || 0) - (b.insertionOrder || 0));
+  }
+
+  // Score candidates by cosine similarity
+  const scored = keywordCandidates
+    .filter(e => e.embedding?.length) // Only score entries with embeddings
+    .map(entry => ({
+      entry,
+      score: cosineSimilarity(queryEmbedding, entry.embedding!),
+    }));
+
+  // Step 5: Top-K selection
+  const topK = scored
+    .filter(s => s.score >= semanticThreshold)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(s => s.entry);
+
+  // Include keyword matches without embeddings (don't penalize unembedded entries)
+  const unembeddedKeywordMatches = keywordCandidates.filter(e => !e.embedding?.length);
+
+  // Merge: constants + topK semantic + unembedded keyword matches
+  const merged = [...constantEntries, ...topK, ...unembeddedKeywordMatches];
+
+  // Dedupe (in case constant entries also matched keywords)
+  const seen = new Set<string>();
+  const deduped = merged.filter(entry => {
+    const key = entry.comment || entry.content?.slice(0, 50) || '';
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  console.log(`Worldbook: Hybrid retrieval selected ${deduped.length} entries (${topK.length} semantic + ${constantEntries.length} constant)`);
+
+  return deduped.sort((a, b) => (a.insertionOrder || 0) - (b.insertionOrder || 0));
 }
 
 /**
@@ -80,11 +208,18 @@ function getRelevantWorldBookEntries(
  * @param relevantMemories - Các ký ức liên quan được trích xuất từ RAG (optional).
  * @returns Một object chứa systemPrompt và userPrompt hoàn chỉnh.
  */
-export function buildFinalPrompt(
+export async function buildFinalPrompt(
   characterData: CharacterCard,
   chatHistoryString: string, // <-- Chỉ chứa 10 tin nhắn gần nhất
   currentUserInput: string,
-  userProfile: { name: string },
+  userProfile: {
+    name: string;
+    appearance?: string;
+    personality?: string;
+    background?: string;
+    currentStatus?: string;
+    inventory?: string[];
+  },
   prompts: {
     multiModePrompt: string;
     multiModeChainOfThoughtPrompt: string;
@@ -93,9 +228,10 @@ export function buildFinalPrompt(
   },
   responseInstructionHint?: string,
   responseLength? : number,
-  relevantMemories?: string // <-- THÊM MỚI: Ký ức liên quan từ RAG
-): { systemPrompt: string; userPrompt: string } {
-  
+  relevantMemories?: string, // <-- Ký ức liên quan từ RAG
+  worldbookOptions?: WorldbookRetrievalOptions // <-- NEW: Worldbook retrieval options
+): Promise<{ systemPrompt: string; userPrompt: string }> {
+
   // Đảm bảo dữ liệu nhân vật được xử lý đúng cách
   characterData.getData();
 
@@ -104,11 +240,15 @@ export function buildFinalPrompt(
     char: characterData.data.name || 'Character', // Thêm fallback
   };
 
-  // 1. Lấy các entry World Book phù hợp dựa trên lịch sử dạng chuỗi
-  const relevantWorldBook = getRelevantWorldBookEntries(
+  // 1. Lấy các entry World Book phù hợp với hybrid retrieval
+  const relevantWorldBook = await getRelevantWorldBookEntries(
     characterData.data.worldBook || [],
     chatHistoryString,
-    currentUserInput
+    currentUserInput,
+    {
+      characterId: characterData.id,
+      ...worldbookOptions,
+    }
   );
 
   // Phân loại entry theo vị trí chèn
@@ -150,8 +290,40 @@ export function buildFinalPrompt(
     </long_term_memory>
   ` : '';
   
+  // 🆕 Thêm thông tin user profile (chỉ khi có data)
+  const buildUserProfileSection = () => {
+    const sections = [];
+    
+    if (userProfile.appearance?.trim()) {
+      sections.push(`**Ngoại hình:** ${userProfile.appearance}`);
+    }
+    if (userProfile.personality?.trim()) {
+      sections.push(`**Tính cách:** ${userProfile.personality}`);
+    }
+    if (userProfile.background?.trim()) {
+      sections.push(`**Lý lịch:** ${userProfile.background}`);
+    }
+    if (userProfile.currentStatus?.trim()) {
+      sections.push(`**Trạng thái hiện tại:** ${userProfile.currentStatus}`);
+    }
+    if (userProfile.inventory && userProfile.inventory.length > 0) {
+      sections.push(`**Đồ đạc:** ${userProfile.inventory.join(', ')}`);
+    }
+    
+    if (sections.length === 0) return '';
+    
+    return `
+    <user_profile name="${userProfile.name}">
+    ${sections.join('\n    ')}
+    </user_profile>
+    `;
+  };
+  
+  const userProfileSection = buildUserProfileSection();
+  
   systemPrompt += `
     ${longTermMemory}
+    ${userProfileSection}
 
     <character_description>
     ${worldBookBeforeChar}

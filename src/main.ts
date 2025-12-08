@@ -4,6 +4,7 @@ import { createPinia } from "pinia";
 import PrimeVue from "primevue/config";
 import Aura from "@primeuix/themes/aura";
 import ConfirmationService from "primevue/confirmationservice";
+import ToastService from "primevue/toastservice";
 import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 // Import các file CSS
 // import './tailwind.css'; // <-- Import file Tailwind chuyên dụng
@@ -34,4 +35,5 @@ app.use(PrimeVue, {
   },
 });
 app.use(ConfirmationService);
+app.use(ToastService);
 app.mount(appDiv);

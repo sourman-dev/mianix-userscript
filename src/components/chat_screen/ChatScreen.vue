@@ -148,6 +148,7 @@ import { SCREENS, MODALS } from '@/constants';
 import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 import LLMOptionsModal from '@/components/llm_models/LLMOptionsModal.vue';
 import { parseLLMResponse } from '@/utils/response-parser';
+import { deleteMemoriesForCharacter } from '@/utils/memory-cleanup'; // 🗑️ Memory cleanup
 
 const screenStore = useScreenStore();
 const resourcesStore = useResourcesStore();
@@ -171,7 +172,7 @@ const moreModeItems = ref([
 
 const suggestedPromptItems = computed(() => {
     const suggestedPrompts = dialogueStore.suggestedPrompts[currentCharacter.value?.id || ''];
-    return suggestedPrompts ? suggestedPrompts.map((prompt, index) => ({
+    return suggestedPrompts ? suggestedPrompts.map((prompt) => ({
         label: prompt,
         command: () => {
             userInput.value = prompt;
@@ -199,11 +200,6 @@ const scrollToBottom = () => {
     });
 };
 
-const handleExtractorCharacterModal = (extractorName: string) => {
-    if (extractorName.length == 0) return;
-    // thay thế {{character_name_to_extract}} thành extractorName
-
-}
 
 const handleChangeLLMOptions = (llmOptions: any) => {
     if (!currentCharacter.value) return;
@@ -220,10 +216,16 @@ const handleRemoveDialogue = () => {
         message: `Bạn có chắc chắn muốn xóa toàn bộ cuộc trò chuyện với "${info.name}" không? Hành động này không thể hoàn tác.`,
         header: 'Xóa cuộc trò chuyện',
         onConfirm: (info) => {
+            // 🗑️ Xóa memories trước (giải phóng bộ nhớ)
+            const deletedMemories = deleteMemoriesForCharacter(info.id);
+            console.log(`🗑️ Deleted ${deletedMemories} memories`);
+
+            // Xóa messages và dialogue
             db.DialogueMessages.removeMany({ dialogueId: info.id });
             db.Dialogues.removeOne({ id: info.id });
             dialogueStore.suggestedPrompts[info.id] = [];
-            // dialogueStore.loadDialogue(info.id); // Tải lại để reset state
+
+            // Navigate back
             screenStore.setScreen(SCREENS.CHARACTER_LIST);
         }
     });
@@ -238,11 +240,11 @@ const sendRequestToLLM = async (promptMessage: string) => {
         // 🆕 Lấy ký ức liên quan từ store (đã được chuẩn bị trước)
         const relevantMemories = dialogueStore.relevantMemories;
 
-        const { systemPrompt, userPrompt } = buildFinalPrompt(
+        const { systemPrompt, userPrompt } = await buildFinalPrompt(
             currentCharacter.value,
             chatHistoryForPrompt.value as string,
             promptMessage,
-            { name: currentUser.value?.name || 'Anonymous' },
+            currentUser.value || { name: 'Anonymous' },
             {
                 multiModePrompt: resourcesStore.multiModePrompt,
                 multiModeChainOfThoughtPrompt: resourcesStore.multiModeChainOfThoughtPrompt,
@@ -251,7 +253,13 @@ const sendRequestToLLM = async (promptMessage: string) => {
             },
             selectedMoreMode.value?.value,
             llmOptions?.responseLength,
-            relevantMemories // 🆕 Truyền ký ức vào prompt
+            relevantMemories, // 🆕 Truyền ký ức vào prompt
+            {
+                limit: 5,                // Max worldbook entries
+                semanticThreshold: 0.5,  // Min similarity
+                useSemanticSearch: true, // Enable hybrid retrieval
+                characterId: currentCharacter.value.id,
+            }
         );
 
         isSending.value = true;
@@ -420,7 +428,16 @@ onMounted(async () => {
                 }
             }
 
-            currentUser.value = db.UserProfiles.findOne({}) as UserProfile | null;
+            // Load profile từ dialogue (nếu có)
+            const dialogue = dialogueStore.currentDialogue as any; // Type assertion for profileId
+            if (dialogue?.profileId) {
+                currentUser.value = db.UserProfiles.findOne({ id: dialogue.profileId }) as UserProfile | null;
+                console.log('✅ Loaded profile for dialogue:', currentUser.value?.name);
+            } else {
+                // Fallback: Lấy profile đầu tiên (backward compatibility)
+                currentUser.value = db.UserProfiles.findOne({}) as UserProfile | null;
+                console.warn('⚠️ No profileId in dialogue, using first available profile');
+            }
         }
     }, 100);
 });
