@@ -234,4 +234,18 @@ Nếu không có thông tin quan trọng nào, trả về: []`;
       return "";
     }
   }
+
+  // 4. Xóa memories liên quan đến message (khi delete message)
+  static deleteMemoriesForMessage(messageId: string): number {
+    const memories = db.Memories.find({ relatedMessageId: messageId }).fetch();
+    
+    if (memories.length > 0) {
+      console.log(`🗑️ Deleting ${memories.length} memories for deleted message ${messageId}`);
+      memories.forEach(mem => {
+        db.Memories.removeOne({ id: mem.id });
+      });
+    }
+    
+    return memories.length;
+  }
 }

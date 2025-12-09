@@ -19,7 +19,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <Card v-for="characterCard in characterCards" :key="characterCard.id" class="w-full">
         <template #header>
-          <CharacterAvatar :src="characterCard.getImageFile()" class="w-full" />
+          <CharacterAvatar :src="characterCard.getImageFile()" :is-nsfw="characterCard.isNSFW" class="w-full" />
         </template>
         <template #title>
           {{ (characterCard.data as any)?.name || 'Unknown' }}
@@ -37,6 +37,8 @@
               @click="handleToChat(characterCard.id)" />
             <Button icon="pi pi-language" severity="secondary" outlined rounded
               @click="handleCharacterEdit(characterCard.id)" aria-label="Edit" />
+            <Button icon="pi pi-book" severity="info" outlined rounded
+              @click="handleWorldbookEdit(characterCard.id)" aria-label="Worldbook" />
             <Button icon="pi pi-arrow-circle-down" severity="success" rounded
               @click="handleCharacterExport(characterCard.id)" aria-label="Export" />
             <Button icon="pi pi-trash" severity="danger" rounded @click="handleDelete(characterCard)"
@@ -47,7 +49,7 @@
     </div>
 
     <CharacterImport @character-imported="handleCharacterImported" />
-    <ProfileSelectorModal @select-profile="handleProfileSelected" />
+    <ProfileSelectorModal :character-id="pendingCharacterId || undefined" @select-profile="handleProfileSelected" />
   </div>
 </template>
 
@@ -69,6 +71,7 @@ import { db, CharacterCard, Dialogue, UserProfile } from '@/db';
 import { useDialogueStore } from '@/stores/dialogue';
 import dayjs from 'dayjs';
 import { adaptText } from '@/utils/msg-process';
+import { deleteMemoriesForCharacter } from '@/utils/memory-cleanup'; // 🗑️ Memory cleanup
 const useScreen = useScreenStore();
 const useModal = useModalStore();
 const dialogueStore = useDialogueStore();
@@ -82,11 +85,15 @@ async function handleDelete(card: CharacterCard) {
     message: `Bạn có chắc chắn muốn xóa nhân vật "${(card.data as any)?.name}"?`,
     header: 'Xóa nhân vật',
     onConfirm: async () => {
+      // 🗑️ Xóa memories trước (giải phóng bộ nhớ)
+      const deletedMemories = deleteMemoriesForCharacter(card.id);
+      console.log(`🗑️ Deleted ${deletedMemories} memories for character ${card.id}`);
+
+      // Xóa character data
       db.CharacterCards.removeOne({ id: card.id });
       db.Storage.removeOne({ id: card.id });
       db.Dialogues.removeOne({ id: card.id });
       db.DialogueMessages.removeMany({ dialogueId: card.id });
-      // await loadCharacterCards();
     }
   })
 }
@@ -105,6 +112,10 @@ const handleCharacterImported = async (parsedData: any, imageFile: File) => {
 
 const handleCharacterEdit = (id: string) => {
   useScreen.setScreen(SCREENS.CHARACTER_TRANSLATE, { id })
+}
+
+const handleWorldbookEdit = (id: string) => {
+  useScreen.setScreen(SCREENS.WORLDBOOK_EDITOR, { characterId: id })
 }
 
 const handleCharacterExport = async (id: string) => {
@@ -166,11 +177,11 @@ const handleToChat = (characterId: string) => {
 }
 
 // Handle khi user chọn profile từ ProfileSelectorModal
-const handleProfileSelected = async (profile: UserProfile) => {
+const handleProfileSelected = async (profile: UserProfile, greetingIndex: number = -1) => {
   if (!pendingCharacterId.value) return;
 
   const characterId = pendingCharacterId.value;
-  console.log(`Creating dialogue for character ${characterId} with profile ${profile.name}`);
+  console.log(`Creating dialogue for character ${characterId} with profile ${profile.name}, greetingIndex: ${greetingIndex}`);
 
   // Tạo first greeting message ID trước
   const firstMessageId = crypto.randomUUID();
@@ -191,7 +202,18 @@ const handleProfileSelected = async (profile: UserProfile) => {
   // Tạo first greeting message
   const characterCard = db.CharacterCards.findOne({ id: characterId }) as CharacterCard;
   characterCard.getData();
-  let firstGreeting = characterCard.getGreeting() as string;
+
+  // Get greeting based on greetingIndex
+  let firstGreeting: string;
+  if (greetingIndex === -1) {
+    // Random greeting (default behavior)
+    firstGreeting = characterCard.getGreeting() as string;
+  } else {
+    // Use specific alternate greeting
+    const alternateGreetings = characterCard.data?.alternateGreetings || [];
+    firstGreeting = alternateGreetings[greetingIndex] || characterCard.data?.firstMessage || '';
+  }
+
   firstGreeting = adaptText(firstGreeting);
 
   // Replace {{user}} with profile.name in firstGreeting

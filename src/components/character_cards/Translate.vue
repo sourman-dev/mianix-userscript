@@ -13,10 +13,16 @@
       <AccordionTab header="General Info">
         <div class="card">
           <div class="flex flex-wrap items-center gap-6 p-4">
-            <CharacterAvatar v-if="character.getImageFile()" :src="character.getImageFile()" :is-circle="false" class="w-32" />
-            <div class="flex items-center gap-2">
-              <label for="use-translated">Use Translated Data:</label>
-              <ToggleSwitch id="use-translated" v-model="character.isUseTranslated" />
+            <CharacterAvatar v-if="character.getImageFile()" :src="character.getImageFile()" :is-circle="false" :is-nsfw="character.isNSFW" class="w-32" />
+            <div class="flex flex-col gap-3">
+              <div class="flex items-center gap-2">
+                <label for="use-translated">Use Translated Data:</label>
+                <ToggleSwitch id="use-translated" v-model="character.isUseTranslated" />
+              </div>
+              <div class="flex items-center gap-2">
+                <label for="is-nsfw">Is NSFW:</label>
+                <ToggleSwitch id="is-nsfw" v-model="character.isNSFW" />
+              </div>
             </div>
             <SaveButton ref="saveButton1" @click="handleGeneralInfoSave" class="ml-auto" />
           </div>
@@ -255,12 +261,13 @@ const handleGeneralInfoSave = async () => {
     // Extract primitive values to avoid DataCloneError
     const characterId = character.value.id;
     const isUseTranslated = Boolean(character.value.isUseTranslated);
+    const isNSFW = Boolean(character.value.isNSFW);
 
     await db.CharacterCards.updateOne(
       { id: characterId },
-      { $set: { isUseTranslated } }
+      { $set: { isUseTranslated, isNSFW } }
     );
-    
+
     saveButton1.value?.showSuccess();
 };
 

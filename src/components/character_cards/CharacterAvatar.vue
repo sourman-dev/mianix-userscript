@@ -25,6 +25,10 @@ export default defineComponent({
     isCircle: {
       type: Boolean,
       default: false
+    },
+    isNsfw: {
+      type: Boolean,
+      default: false
     }
   },
   setup(props) {
@@ -34,6 +38,12 @@ export default defineComponent({
       // Revoke the old object URL if it's a blob URL
       if (imageUrl.value && imageUrl.value.startsWith('blob:')) {
         URL.revokeObjectURL(imageUrl.value);
+      }
+
+      // If NSFW flag is set, always show APP_LOGO
+      if (props.isNsfw) {
+        imageUrl.value = APP_LOGO;
+        return;
       }
 
       if (file instanceof File) {
@@ -49,6 +59,14 @@ export default defineComponent({
         updateImageUrl(newFile);
       },
       { immediate: true }
+    );
+
+    // Watch isNsfw prop to update image when NSFW toggle changes
+    watch(
+      () => props.isNsfw,
+      () => {
+        updateImageUrl(props.src);
+      }
     );
 
     onBeforeUnmount(() => {

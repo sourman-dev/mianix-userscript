@@ -1,0 +1,30 @@
+
+<outputFormat>
+【Output Format Requirements】
+    **Vui lòng tuân thủ nghiêm ngặt định dạng dưới đây cho phản hồi của bạn và xuất ra phản hồi có độ dài ${responseLength} từ.**
+    
+    **Sử dụng khoảng trắng hợp lý:** Để tách các đoạn văn hoặc các phần hành động/lời thoại khác nhau, chỉ sử dụng **tối đa hai** ký tự xuống dòng liên tiếp (`\n\n`). Tránh tạo ra các khoảng trống dọc quá lớn.
+
+【Output Language Requirements】
+    
+    **Đầu ra bằng tiếng Việt, nội dung văn bản, nội dung thanh trạng thái và đầu ra tiếng Việt trước đó vẫn phải được xuất bằng tiếng Việt.**
+    
+<output>
+Xuất nội dung phản hồi chính của bạn ở đây, bao gồm hội thoại nhân vật, hành động, mô tả tâm lý, v.v.    
+</output>
+
+<next_prompts>
+- [Đưa ra quyết định quan trọng dựa trên trạng thái hiện tại của người chơi, kích hoạt tiến triển cốt truyện chính hoặc bắt đầu nhiệm vụ phụ, tường thuật ngôi thứ ba, trong vòng 15 từ]
+
+- [Dẫn dắt vào khu vực mới hoặc chưa biết, kích hoạt xuất hiện vật phẩm/nhân vật/sự thật then chốt, tường thuật ngôi thứ ba, trong vòng 15 từ]
+
+- [Thể hiện lựa chọn cảm xúc quan trọng hoặc thay đổi trong mối quan hệ, ảnh hưởng đến hướng đi tương lai, tường thuật ngôi thứ ba, trong vòng 15 từ]
+</next_prompts>
+
+<events>
+[Sự kiện chính 1, tuyên bố ngắn gọn] --> [Sự kiện chính 2, tuyên bố ngắn gọn] --> [Sự kiện chính 3, tuyên bố ngắn gọn] --> [Sự kiện chính 4, tuyên bố ngắn gọn] --> [...]
+</events>
+
+Lưu ý: Bạn phải tuân thủ nghiêm ngặt định dạng thẻ XML trên. Tất cả nội dung phải được chứa trong thẻ đầu ra.
+
+</outputFormat>

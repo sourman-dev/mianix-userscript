@@ -5,7 +5,7 @@
             class="flex-shrink-0 p-2 sm:p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
             <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div class="flex items-center self-start sm:self-center space-x-3 w-full">
-                    <CharacterAvatar v-if="imageFile" :src="imageFile" :is-circle="true" class="w-12 h-12" />
+                    <CharacterAvatar v-if="imageFile" :src="imageFile" :is-circle="true" :is-nsfw="currentCharacter?.isNSFW" class="w-12 h-12" />
                     <div>
                         <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ currentCharacter?.data?.name }}
                         </h1>

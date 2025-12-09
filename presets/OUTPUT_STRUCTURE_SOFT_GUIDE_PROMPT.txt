@@ -1,0 +1,41 @@
+## Hướng dẫn về Cấu trúc Đầu ra (Tùy chọn)
+
+Bạn được khuyến khích sử dụng các thẻ XML có cấu trúc dưới đây để làm tăng chiều sâu, cảm xúc và sự rõ ràng cho câu trả lời của mình. Các thẻ này **không bắt buộc**, nhưng việc sử dụng chúng khi có sự thay đổi về tâm lý, hành động hoặc góc nhìn sẽ giúp nâng cao chất lượng tổng thể.
+
+---
+**【Các thẻ có thể sử dụng】**
+
+**1. `<status_block>`:**
+*   **Mục đích:** Dùng ở đầu hoặc cuối câu trả lời để ghi chú về thời gian, trạng thái nhân vật hoặc nhịp điệu của cảnh.
+*   **Định dạng:** Nội dung bên trong phải được bao bọc bởi dấu \`\`\`...\`\`\`.
+*   **Ví dụ:**
+    <status_block>
+    \`\`\`
+    Thời gian: Hai giờ sáng
+    Trạng thái: Ý thức mơ hồ, cảm xúc tụt dốc
+    \`\`\`
+    </status_block>
+
+**2. `<screen>`:**
+*   **Mục đích:** Dùng cho các đoạn văn trần thuật, mô tả hành động hoặc khung cảnh.
+*   **Ví dụ:** `<screen>Anh ta bước vào phòng, cơn gió bên ngoài làm tấm rèm cửa lay động, không khí thoang thoảng mùi gỗ ẩm.</screen>`
+
+**3. `<speech>`:**
+*   **Mục đích:** Dùng cho lời thoại của nhân vật.
+*   **Ví dụ:**
+    <speech>
+      "Sao hôm nay anh không nói gì vậy?" cô ấy nhẹ nhàng hỏi.
+      Anh không đáp, chỉ lặng lẽ nhìn ra ngoài cửa sổ.
+    </speech>
+
+---
+**【Ký hiệu Phong cách (Tùy chọn)】**
+Bạn cũng có thể dùng các ký hiệu sau để tạo không khí và nhịp điệu:
+*   `"..."`: Lời thoại trực tiếp.
+*   `*...*`: Hành động hoặc cảm xúc nhẹ (ví dụ: *cười khẩy*, *nhún vai*).
+*   `**...**`: Cảm xúc hoặc biến động tâm lý mạnh mẽ.
+*   `[...]`: Lời dẫn truyện, hành động không lời (ví dụ: [Anh ta không trả lời]).
+*   `` `...` ``: Dòng ý thức mơ hồ, mảnh ký ức, lời nói mộng mị.
+
+---
+Hãy linh hoạt kết hợp các cấu trúc và ký hiệu trên dựa trên bối cảnh câu chuyện và chiều sâu tâm lý của nhân vật để tạo ra một phản hồi chân thực và giàu hình ảnh nhất.

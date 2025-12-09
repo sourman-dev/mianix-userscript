@@ -24,6 +24,7 @@ export type CharacterCardType = {
   data: Partial<CharacterCardData>;
   dataTranslated?: Partial<CharacterCardData>;
   isUseTranslated: boolean;
+  isNSFW?: boolean; // Hide NSFW character avatar with APP_LOGO
   createdAt: number;
   linkedGlobalWorldbooks?: string[]; // IDs of global worldbooks to include
 };
@@ -93,12 +94,14 @@ export class CharacterCard {
   data: Partial<CharacterCardData>;
   dataTranslated?: Partial<CharacterCardData>;
   isUseTranslated: boolean;
+  isNSFW?: boolean;
   createdAt: number;
   constructor(data: any) {
     this.id = data.id;
     this.data = data.data;
     this.dataTranslated = data.dataTranslated || {};
     this.isUseTranslated = data.isUseTranslated || false;
+    this.isNSFW = data.isNSFW || false;
     this.createdAt = data.createdAt || Date.now();
     // Storage.insert({ id: this.id, file: data.imageFile, type: "image" });
   }

@@ -13,6 +13,7 @@ declare module 'vue' {
     DeleteConfirm: typeof import('./src/components/DeleteConfirm.vue')['default']
     EditMessageModal: typeof import('./src/components/chat_screen/EditMessageModal.vue')['default']
     ExtractorCharacterModal: typeof import('./src/components/chat_screen/ExtractorCharacterModal.vue')['default']
+    GlobalWorldbookManager: typeof import('./src/components/worldbook/GlobalWorldbookManager.vue')['default']
     Index: typeof import('./src/components/character_cards/Index.vue')['default']
     LLMIndex: typeof import('./src/components/llm_models/LLMIndex.vue')['default']
     LLMOptionsModal: typeof import('./src/components/llm_models/LLMOptionsModal.vue')['default']
@@ -31,6 +32,10 @@ declare module 'vue' {
     SelectButton: typeof import('primevue/selectbutton')['default']
     SplitButton: typeof import('primevue/splitbutton')['default']
     Translate: typeof import('./src/components/character_cards/Translate.vue')['default']
+    WorldbookEditor: typeof import('./src/components/worldbook/WorldbookEditor.vue')['default']
+    WorldbookEntryForm: typeof import('./src/components/worldbook/WorldbookEntryForm.vue')['default']
+    WorldbookLinker: typeof import('./src/components/worldbook/WorldbookLinker.vue')['default']
+    WorldbookTable: typeof import('./src/components/worldbook/WorldbookTable.vue')['default']
   }
   export interface GlobalDirectives {
     Ripple: typeof import('primevue/ripple')['default']
