@@ -13,6 +13,7 @@ export interface WorldbookRetrievalOptions {
   limit?: number;              // Max entries to return (default: 5)
   semanticThreshold?: number;  // Min similarity (default: 0.5)
   useSemanticSearch?: boolean; // Enable semantic ranking (default: true)
+  keywordBoost?: number;       // Score boost for keyword matches (default: 0.1)
   characterId?: string;        // Required for semantic search
 }
 
@@ -56,7 +57,35 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
 }
 
 /**
- * Hybrid retrieval: keyword pre-filter + semantic ranking + Top-K selection
+ * Helper: Check if entry has keyword match in context
+ */
+function hasKeywordMatchInEntry(entry: WorldBookEntry, contextText: string): boolean {
+  if (!entry.keys || !Array.isArray(entry.keys)) return false;
+
+  return entry.keys.some(key => {
+    if (entry.useRegex) {
+      try {
+        return new RegExp(key, 'i').test(contextText);
+      } catch {
+        return false;
+      }
+    }
+    return contextText.toLowerCase().includes(key.toLowerCase());
+  });
+}
+
+/**
+ * Helper: Get keyword-only matches (for fallback)
+ */
+function getKeywordMatches(
+  entries: WorldBookEntry[],
+  contextText: string
+): WorldBookEntry[] {
+  return entries.filter(entry => hasKeywordMatchInEntry(entry, contextText));
+}
+
+/**
+ * Semantic-first retrieval: ALL embedded entries → semantic ranking → keyword boost → Top-K
  * Falls back to keyword-only if no embeddings available
  *
  * @param worldBook - Toàn bộ World Book của nhân vật
@@ -75,6 +104,7 @@ async function getRelevantWorldBookEntries(
     limit = 5,
     semanticThreshold = 0.5,
     useSemanticSearch = true,
+    keywordBoost = 0.1,
   } = options;
 
   if (!worldBook || worldBook.length === 0) return [];
@@ -86,40 +116,31 @@ async function getRelevantWorldBookEntries(
     entry => entry.constant && entry.enabled !== false
   );
 
-  // Step 2: Keyword pre-filter for non-constant entries
-  const keywordCandidates = worldBook.filter(entry => {
-    if (entry.constant) return false; // Already in constantEntries
-    if (!entry.enabled || entry.selective === false) return false;
+  // Step 2: Separate embedded vs non-embedded entries (no keyword pre-filter)
+  const enabledEntries = worldBook.filter(
+    entry => !entry.constant && entry.enabled !== false && entry.selective !== false
+  );
 
-    return Array.isArray(entry.keys) && entry.keys.some(key => {
-      if (entry.useRegex) {
-        try {
-          return new RegExp(key, 'i').test(contextText);
-        } catch {
-          return false;
-        }
-      }
-      return contextText.includes(key.toLowerCase());
-    });
-  });
+  const embeddedEntries = enabledEntries.filter(e => e.embedding?.length);
+  const nonEmbeddedEntries = enabledEntries.filter(e => !e.embedding?.length);
 
   // Step 3: Check if semantic search is possible
   const hasEmbeddingModel = !!getEmbeddingModel();
-  const hasEmbeddings = keywordCandidates.some(e => e.embedding?.length);
+  const hasEmbeddings = embeddedEntries.length > 0;
 
   // If no semantic search capability, fall back to keyword-only
   if (!useSemanticSearch || !hasEmbeddingModel || !hasEmbeddings) {
-    console.log('Worldbook: Using keyword-only retrieval');
-    const result = [...constantEntries, ...keywordCandidates];
+    console.log('[Worldbook] Using keyword-only retrieval (no embeddings)');
+    const keywordMatches = getKeywordMatches(enabledEntries, contextText);
+    const result = [...constantEntries, ...keywordMatches];
     return result.sort((a, b) => (a.insertionOrder || 0) - (b.insertionOrder || 0));
   }
 
-  // Step 4: Semantic ranking
+  // Step 4: Generate query embedding for semantic search
   const query = `${chatHistoryString.slice(-500)}\n${currentUserInput}`;
   let queryEmbedding: number[] = [];
 
   try {
-    // Generate query embedding
     const embeddingModel = getEmbeddingModel()!;
     let embedUrl = embeddingModel.baseUrl;
     if (embedUrl.endsWith('/')) embedUrl = embedUrl.slice(0, -1);
@@ -150,41 +171,61 @@ async function getRelevantWorldBookEntries(
     } catch (fetchError: any) {
       clearTimeout(timeoutId);
       if (fetchError.name === 'AbortError') {
-        console.warn('Worldbook: Query embedding timeout (30s)');
+        console.warn('[Worldbook] Query embedding timeout (30s)');
       }
     }
   } catch (e) {
-    console.warn('Worldbook: Failed to generate query embedding, using keyword-only');
+    console.warn('[Worldbook] Failed to generate query embedding, using keyword-only');
   }
 
   // Fallback if embedding generation failed
   if (!queryEmbedding.length) {
-    const result = [...constantEntries, ...keywordCandidates];
+    console.log('[Worldbook] Query embedding failed, falling back to keyword-only');
+    const keywordMatches = getKeywordMatches(enabledEntries, contextText);
+    const result = [...constantEntries, ...keywordMatches];
     return result.sort((a, b) => (a.insertionOrder || 0) - (b.insertionOrder || 0));
   }
 
-  // Score candidates by cosine similarity
-  const scored = keywordCandidates
-    .filter(e => e.embedding?.length) // Only score entries with embeddings
-    .map(entry => ({
-      entry,
-      score: cosineSimilarity(queryEmbedding, entry.embedding!),
-    }));
+  // Step 5: Semantic ranking with optional keyword boost
+  const scored = embeddedEntries.map(entry => {
+    // Base semantic score
+    const similarity = cosineSimilarity(queryEmbedding, entry.embedding!);
 
-  // Step 5: Top-K selection
+    // Optional keyword boost (+0.1 if keys match)
+    const hasKeywordMatch = hasKeywordMatchInEntry(entry, contextText);
+    const boostedScore = hasKeywordMatch ? similarity + keywordBoost : similarity;
+
+    return {
+      entry,
+      score: boostedScore,
+      hasKeywordMatch,
+      baseScore: similarity,
+    };
+  });
+
+  // Step 6: Top-K selection
   const topK = scored
     .filter(s => s.score >= semanticThreshold)
     .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .map(s => s.entry);
+    .slice(0, limit);
 
-  // Include keyword matches without embeddings (don't penalize unembedded entries)
-  const unembeddedKeywordMatches = keywordCandidates.filter(e => !e.embedding?.length);
+  console.log(`[Worldbook] Semantic-first retrieval: ${topK.length}/${embeddedEntries.length} entries above threshold ${semanticThreshold}`);
+  if (topK.length > 0 && topK.some(s => s.hasKeywordMatch)) {
+    const boostedCount = topK.filter(s => s.hasKeywordMatch).length;
+    console.log(`[Worldbook] Keyword boost applied to ${boostedCount}/${topK.length} entries`);
+  }
 
-  // Merge: constants + topK semantic + unembedded keyword matches
-  const merged = [...constantEntries, ...topK, ...unembeddedKeywordMatches];
+  // Step 7: Include keyword-only matches for non-embedded entries
+  const nonEmbeddedKeywordMatches = getKeywordMatches(nonEmbeddedEntries, contextText);
 
-  // Dedupe (in case constant entries also matched keywords)
+  // Merge: constants + topK semantic + non-embedded keyword matches
+  const merged = [
+    ...constantEntries,
+    ...topK.map(s => s.entry),
+    ...nonEmbeddedKeywordMatches,
+  ];
+
+  // Dedupe (in case constant entries also matched)
   const seen = new Set<string>();
   const deduped = merged.filter(entry => {
     const key = entry.comment || entry.content?.slice(0, 50) || '';
@@ -193,7 +234,7 @@ async function getRelevantWorldBookEntries(
     return true;
   });
 
-  console.log(`Worldbook: Hybrid retrieval selected ${deduped.length} entries (${topK.length} semantic + ${constantEntries.length} constant)`);
+  console.log(`[Worldbook] Final selection: ${deduped.length} entries (${topK.length} semantic + ${constantEntries.length} constant + ${nonEmbeddedKeywordMatches.length} keyword-only)`);
 
   return deduped.sort((a, b) => (a.insertionOrder || 0) - (b.insertionOrder || 0));
 }
