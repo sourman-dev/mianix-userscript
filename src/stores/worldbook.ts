@@ -126,6 +126,19 @@ export const useWorldbookStore = defineStore('worldbook', () => {
     isDirty.value = false;
   }
 
+  function linkGlobalWorldbooks(charId: string, linkedIds: string[]): boolean {
+    try {
+      db.CharacterCards.updateOne(
+        { id: charId },
+        { $set: { linkedGlobalWorldbooks: linkedIds } }
+      );
+      return true;
+    } catch (e) {
+      console.error('Failed to link worldbooks:', e);
+      return false;
+    }
+  }
+
   return {
     // State
     characterId,
@@ -146,5 +159,6 @@ export const useWorldbookStore = defineStore('worldbook', () => {
     saveAll,
     generateEmbeddings,
     reset,
+    linkGlobalWorldbooks,
   };
 });

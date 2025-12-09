@@ -29,6 +29,19 @@ export interface WorldBookEntry {
 }
 
 /**
+ * Global/shared worldbook that can be linked to multiple characters
+ */
+export interface GlobalWorldbookType {
+  id: string;
+  name: string;
+  description?: string;
+  entries: WorldBookEntry[];
+  tags?: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
  * Interface cho dữ liệu nhân vật đã được chuẩn hóa (sử dụng camelCase).
  * Đây là cấu trúc dữ liệu chính mà ứng dụng của bạn sẽ làm việc sau khi đã xử lý dữ liệu thô.
  */

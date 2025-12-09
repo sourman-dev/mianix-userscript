@@ -6,6 +6,7 @@ export const SCREENS = {
   MODELS_LIST: "models-list",
   PRESETS_CONFIG: "preset-config",
   WORLDBOOK_EDITOR: "worldbook-editor",
+  GLOBAL_WORLDBOOK_MANAGER: "global-worldbook-manager",
 };
 
 export const MODALS = {

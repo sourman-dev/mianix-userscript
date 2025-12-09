@@ -5,6 +5,7 @@ import { useWorldbookStore } from '@/stores/worldbook';
 import { SCREENS } from '@/constants';
 import WorldbookTable from './WorldbookTable.vue';
 import WorldbookEntryForm from './WorldbookEntryForm.vue';
+import WorldbookLinker from './WorldbookLinker.vue';
 import Button from 'primevue/button';
 import { useToast } from 'primevue/usetoast';
 
@@ -95,6 +96,15 @@ async function handleGenerateEmbeddings() {
           :style="{ width: `${(worldbookStore.embeddingProgress.current / worldbookStore.embeddingProgress.total) * 100}%` }"
         />
       </div>
+    </div>
+
+    <!-- Global Worldbook Linker -->
+    <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+      <WorldbookLinker
+        v-if="characterId"
+        :character-id="characterId"
+        @change="worldbookStore.loadCharacter(characterId)"
+      />
     </div>
 
     <!-- Main content -->

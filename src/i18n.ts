@@ -9,6 +9,7 @@ export const i18n = createI18n({
       'app.name': 'Mianix',
       'nav.profiles': 'Hồ sơ',
       'nav.characters': 'Nhân vật',
+      'nav.global_worldbooks': 'Worldbooks toàn cục',
       'nav.llm_models': 'Models AI',
       'nav.presets': 'Lời nhắc',
       'llm_models.index.title': 'Quản lý LLM models',

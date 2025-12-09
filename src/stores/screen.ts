@@ -6,6 +6,8 @@ import ChatScreen from '@/components/chat_screen/ChatScreen.vue'
 import LlmModelsList from '@/components/llm_models/LLMIndex.vue'
 import PresetConfig from '@/components/PresetConfig.vue'
 import ProfileList from '@/components/profiles/ProfileList.vue'
+import WorldbookEditor from '@/components/worldbook/WorldbookEditor.vue'
+import GlobalWorldbookManager from '@/components/worldbook/GlobalWorldbookManager.vue'
 
 export const useScreenStore = defineStore('screen', {
   state: () => ({
@@ -34,6 +36,10 @@ export const useScreenStore = defineStore('screen', {
           return LlmModelsList;
         case SCREENS.PRESETS_CONFIG:
           return PresetConfig;
+        case SCREENS.WORLDBOOK_EDITOR:
+          return WorldbookEditor;
+        case SCREENS.GLOBAL_WORLDBOOK_MANAGER:
+          return GlobalWorldbookManager;
         default:
           return ProfileList;
       }

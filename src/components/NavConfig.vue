@@ -41,6 +41,10 @@ const menuItems = [
         command: () => screenStore.setScreen(SCREENS.CHARACTER_LIST),
     },
     {
+        label: t('nav.global_worldbooks'),
+        command: () => screenStore.setScreen(SCREENS.GLOBAL_WORLDBOOK_MANAGER),
+    },
+    {
         label: t('nav.llm_models'),
         command: () => screenStore.setScreen(SCREENS.MODELS_LIST),
     },

@@ -4,6 +4,7 @@ import type { WorldBookEntry } from '@/types/character';
 import { CharacterCard } from '@/db';
 import { adaptText } from './msg-process';
 import { getEmbeddingModel } from '@/utils/model-helpers';
+import { getMergedWorldbook } from './worldbook-merge';
 
 /**
  * Options for worldbook retrieval with hybrid search
@@ -241,8 +242,10 @@ export async function buildFinalPrompt(
   };
 
   // 1. Lấy các entry World Book phù hợp với hybrid retrieval
+  // Use merged worldbook (global + character-specific)
+  const mergedWorldBook = getMergedWorldbook(characterData.id);
   const relevantWorldBook = await getRelevantWorldBookEntries(
-    characterData.data.worldBook || [],
+    mergedWorldBook,
     chatHistoryString,
     currentUserInput,
     {

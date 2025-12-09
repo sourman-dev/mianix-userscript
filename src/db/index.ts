@@ -2,7 +2,7 @@ import { Collection } from "@signaldb/core";
 import createIndexedDBAdapter from "@signaldb/indexeddb";
 import vueReactivityAdapter from "@signaldb/vue";
 import createMonkeyAdapter from "./monkey";
-import { CharacterCardData } from "@/types/character";
+import { CharacterCardData, GlobalWorldbookType } from "@/types/character";
 import { mergeObjects } from "@/utils/common";
 
 export type ModelType = 'chat' | 'embedding' | 'extraction';
@@ -25,6 +25,7 @@ export type CharacterCardType = {
   dataTranslated?: Partial<CharacterCardData>;
   isUseTranslated: boolean;
   createdAt: number;
+  linkedGlobalWorldbooks?: string[]; // IDs of global worldbooks to include
 };
 
 export type StorageType = {
@@ -276,6 +277,13 @@ const LLMModels = new Collection<LLMModel>({
   primaryKeyGenerator: () => crypto.randomUUID(),
 });
 
+const GlobalWorldbooks = new Collection<GlobalWorldbookType>({
+  name: "Global_Worldbooks",
+  reactivity: vueReactivityAdapter,
+  persistence: createMonkeyAdapter("Global_Worldbooks"),
+  primaryKeyGenerator: () => crypto.randomUUID(),
+});
+
 // Initialize default profile for first-time users
 // IMPORTANT: Wrap in setTimeout to wait for minimongo to load from storage
 setTimeout(() => {
@@ -305,4 +313,5 @@ export const db = {
   Dialogues,
   UserProfiles,
   Memories,
+  GlobalWorldbooks,
 };
