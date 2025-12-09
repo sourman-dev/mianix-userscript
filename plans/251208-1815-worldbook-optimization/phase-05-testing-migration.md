@@ -537,6 +537,352 @@ if (process.env.NODE_ENV === 'development') {
 }
 ```
 
+## Step 7: Fix Cross-Language Retrieval (Phase 05-b)
+
+### Problem Statement
+
+**Current Issue:**
+- Keyword pre-filter blocks English worldbook entries when chatting in Vietnamese
+- Example: Entry with `keys: ["dragon"]` NOT matched when query is "Rồng là gì?"
+- Semantic search NEVER runs because keyword pre-filter eliminates entries first
+
+**Impact:**
+- Users with English character cards cannot use worldbooks when chatting in Vietnamese
+- Forces unnecessary translation of all worldbook keys
+- Wastes multilingual embedding capability
+
+### Root Cause
+
+File: `src/utils/prompt-utils.ts:86-101`
+
+```typescript
+// Step 2: Keyword pre-filter for non-constant entries
+const keywordCandidates = worldBook.filter(entry => {
+  if (entry.constant) return false;
+  if (!entry.enabled || entry.selective === false) return false;
+
+  return Array.isArray(entry.keys) && entry.keys.some(key => {
+    if (entry.useRegex) {
+      try {
+        return new RegExp(key, 'i').test(contextText);
+      } catch {
+        return false;
+      }
+    }
+    return contextText.includes(key.toLowerCase()); // ← BLOCKS cross-language
+  });
+});
+
+// Only keywordCandidates go to semantic ranking
+// English entries eliminated before semantic search!
+```
+
+### Solution: Semantic-First Retrieval
+
+**Architecture Change:**
+```
+BEFORE (Hybrid with pre-filter):
+  All entries → Keyword filter → [Small subset] → Semantic ranking → Top-K
+
+AFTER (Semantic-first):
+  Embedded entries → Semantic ranking → Top-K → Keyword boost (optional)
+  Non-embedded entries → Keyword filter → Append to results
+```
+
+**Benefits:**
+- ✅ Cross-language matching works (semantic search sees ALL embedded entries)
+- ✅ Keyword matching becomes score booster, not eliminator
+- ✅ No translation required for worldbook keys
+- ✅ Multilingual embedding models fully utilized
+
+### Implementation
+
+File: `src/utils/prompt-utils.ts`
+
+```typescript
+export async function getRelevantWorldBookEntries(
+  worldBook: WorldBookEntry[],
+  chatHistoryString: string,
+  currentUserInput: string,
+  options: WorldbookRetrievalOptions = {}
+): Promise<WorldBookEntry[]> {
+  const {
+    limit = 5,
+    semanticThreshold = 0.5,
+    useSemanticSearch = true,
+    characterId,
+  } = options;
+
+  // Step 1: Extract constant entries (always included)
+  const constantEntries = worldBook.filter(
+    entry => entry.constant && entry.enabled !== false
+  );
+
+  // Step 2: Separate embedded vs non-embedded entries
+  const embeddedEntries = worldBook.filter(
+    e => !e.constant && e.enabled !== false && e.embedding?.length
+  );
+  const nonEmbeddedEntries = worldBook.filter(
+    e => !e.constant && e.enabled !== false && !e.embedding?.length
+  );
+
+  const contextText = `${chatHistoryString}\n${currentUserInput}`.toLowerCase();
+
+  // Step 3: Semantic-first retrieval for embedded entries
+  if (useSemanticSearch && embeddedEntries.length > 0 && characterId) {
+    try {
+      const embeddingModel = getEmbeddingModel();
+      if (!embeddingModel) {
+        console.warn('No embedding model configured, using keyword-only');
+        return [...constantEntries, ...getKeywordMatches(worldBook, contextText)];
+      }
+
+      // Generate query embedding
+      const query = `${chatHistoryString.slice(-500)}\n${currentUserInput}`;
+      const queryEmbedding = await generateQueryEmbedding(
+        query,
+        embeddingModel,
+        characterId
+      );
+
+      if (!queryEmbedding || queryEmbedding.length === 0) {
+        console.warn('Query embedding failed, falling back to keyword-only');
+        return [...constantEntries, ...getKeywordMatches(worldBook, contextText)];
+      }
+
+      // Step 4: Semantic ranking (ALL embedded entries, no pre-filter)
+      const scored = embeddedEntries.map(entry => {
+        const similarity = cosineSimilarity(queryEmbedding, entry.embedding!);
+
+        // Step 5: Optional keyword boost (+0.1 if keys match)
+        const hasKeywordMatch = hasKeywordMatchInEntry(entry, contextText);
+        const boostedScore = hasKeywordMatch ? similarity + 0.1 : similarity;
+
+        return { entry, score: boostedScore, hasKeywordMatch };
+      });
+
+      // Step 6: Top-K selection with threshold
+      const topK = scored
+        .filter(s => s.score >= semanticThreshold)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit)
+        .map(s => s.entry);
+
+      // Step 7: Log retrieval for debugging
+      if (process.env.NODE_ENV === 'development') {
+        console.group('🔍 Worldbook Retrieval (Semantic-First)');
+        console.log('Mode: Semantic-first with keyword boost');
+        console.log('Total entries:', worldBook.length);
+        console.log('Constant entries:', constantEntries.length);
+        console.log('Embedded entries:', embeddedEntries.length);
+        console.log('Top-K selected:', topK.length);
+        console.log('Results:', [
+          ...constantEntries.map(e => `[CONST] ${e.comment}`),
+          ...topK.map((e, i) => {
+            const s = scored.find(x => x.entry === e);
+            return `[${i + 1}] ${e.comment} (score: ${s?.score.toFixed(2)}, keyword: ${s?.hasKeywordMatch ? 'YES' : 'NO'})`;
+          })
+        ]);
+        console.groupEnd();
+      }
+
+      return [...constantEntries, ...topK];
+
+    } catch (error) {
+      console.error('Semantic search error:', error);
+      // Fall back to keyword-only on error
+    }
+  }
+
+  // Fallback: Keyword-only for non-embedded or when semantic disabled
+  console.log('Using keyword-only retrieval (no embeddings or disabled)');
+  const keywordMatches = getKeywordMatches(
+    [...embeddedEntries, ...nonEmbeddedEntries],
+    contextText
+  );
+
+  return [...constantEntries, ...keywordMatches];
+}
+
+/**
+ * Helper: Check if entry has keyword match
+ */
+function hasKeywordMatchInEntry(entry: WorldBookEntry, contextText: string): boolean {
+  if (!entry.keys || !Array.isArray(entry.keys)) return false;
+
+  return entry.keys.some(key => {
+    if (entry.useRegex) {
+      try {
+        return new RegExp(key, 'i').test(contextText);
+      } catch {
+        return false;
+      }
+    }
+    return contextText.includes(key.toLowerCase());
+  });
+}
+
+/**
+ * Helper: Get keyword-only matches (for fallback)
+ */
+function getKeywordMatches(
+  entries: WorldBookEntry[],
+  contextText: string
+): WorldBookEntry[] {
+  return entries.filter(entry => hasKeywordMatchInEntry(entry, contextText));
+}
+```
+
+### Testing Cross-Language
+
+File: `src/__tests__/utils/prompt-utils-crosslang.test.ts`
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { getRelevantWorldBookEntries } from '@/utils/prompt-utils';
+import type { WorldBookEntry } from '@/types/character';
+
+describe('Cross-Language Retrieval', () => {
+  const englishWorldbook: WorldBookEntry[] = [
+    {
+      keys: ['dragon', 'mythical beast'],
+      content: 'Dragons are ancient fire-breathing creatures',
+      comment: 'Dragon Lore',
+      enabled: true,
+      embedding: Array(1536).fill(0.1), // Mock embedding
+    },
+    {
+      keys: ['elf', 'forest dweller'],
+      content: 'Elves are immortal beings living in forests',
+      comment: 'Elf Description',
+      enabled: true,
+      embedding: Array(1536).fill(0.2),
+    },
+  ];
+
+  it('should retrieve English entries with Vietnamese query', async () => {
+    // Vietnamese: "Tell me about dragons"
+    const vietnameseQuery = 'Kể cho tôi nghe về rồng';
+
+    // Mock embedding generation to return similar vector for Vietnamese query
+    const result = await getRelevantWorldBookEntries(
+      englishWorldbook,
+      '',
+      vietnameseQuery,
+      {
+        useSemanticSearch: true,
+        semanticThreshold: 0.5,
+        characterId: 'test-char',
+      }
+    );
+
+    // Should find "Dragon Lore" despite language mismatch
+    expect(result.some(e => e.comment === 'Dragon Lore')).toBe(true);
+  });
+
+  it('should NOT block entries with keyword pre-filter', async () => {
+    // This test verifies semantic-first approach
+    const vietnameseQuery = 'Rồng bay trên trời'; // "Dragon flying in sky"
+
+    const result = await getRelevantWorldBookEntries(
+      englishWorldbook,
+      '',
+      vietnameseQuery,
+      {
+        useSemanticSearch: true,
+        characterId: 'test-char',
+      }
+    );
+
+    // With old keyword pre-filter: result.length === 0 (blocked)
+    // With semantic-first: result.length > 0 (semantic match)
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it('should boost entries with keyword match', async () => {
+    // Mixed language: Vietnamese query with English word
+    const mixedQuery = 'Kể về dragon trong thần화'; // "Tell about dragon in mythology"
+
+    const result = await getRelevantWorldBookEntries(
+      englishWorldbook,
+      '',
+      mixedQuery,
+      {
+        useSemanticSearch: true,
+        characterId: 'test-char',
+      }
+    );
+
+    // Dragon entry should rank higher (keyword "dragon" matched)
+    expect(result[0]?.comment).toBe('Dragon Lore');
+  });
+});
+```
+
+### Migration Notes
+
+**No Breaking Changes:**
+- Existing keyword-only fallback still works
+- Constant entries behavior unchanged
+- API signature unchanged (WorldbookRetrievalOptions same)
+
+**Performance Impact:**
+- Slightly slower: Ranks ALL embedded entries instead of pre-filtered subset
+- Mitigation: Most character cards have <100 entries, cosine similarity is fast (O(n))
+- Benchmarks: 100 entries × 1536 dimensions ≈ 10-20ms on modern CPU
+
+### Success Criteria
+
+1. ✅ Vietnamese query + English worldbook → Entries retrieved
+2. ✅ English query + Vietnamese worldbook → Entries retrieved
+3. ✅ Mixed language queries work correctly
+4. ✅ Keyword matching still boosts relevant entries
+5. ✅ Fallback to keyword-only when no embeddings
+6. ✅ Performance <50ms for 100 entries
+
+### Documentation Update
+
+Add to `docs/PHASE-04-GLOBAL-WORLDBOOKS.md`:
+
+```markdown
+## Cross-Language Support (Phase 05-b)
+
+### Multilingual Retrieval
+
+The hybrid retrieval system supports cross-language matching using multilingual embedding models:
+
+**Supported Scenarios:**
+- ✅ Chat in Vietnamese, worldbook in English
+- ✅ Chat in English, worldbook in Vietnamese
+- ✅ Mixed language queries
+- ✅ Character cards from SillyTavern (typically English)
+
+**How It Works:**
+1. Embedding models (e.g., `text-embedding-3-small`) are multilingual
+2. Semantic search ranks ALL embedded entries (no keyword pre-filter)
+3. Keyword matching becomes optional score booster (+0.1)
+4. Top-K selection picks highest scoring entries
+
+**Example:**
+```typescript
+// English worldbook entry
+{
+  keys: ["dragon"],
+  content: "Dragons are fire-breathing...",
+  embedding: [0.23, -0.41, 0.88, ...]
+}
+
+// Vietnamese query: "Rồng là gì?" (What is dragon?)
+// Query embedding: [0.19, -0.38, 0.85, ...]
+// Cosine similarity: 0.92 (HIGH) → Entry selected ✅
+```
+
+**No Translation Required:**
+- Worldbook content can stay in original language (English)
+- Optional: Add Vietnamese translations to `entry.keys[]` for keyword boost
+- Semantic search handles language differences automatically
+```
+
 ## Todo List
 
 - [ ] Create `src/__tests__/services/worldbook-service.test.ts`
@@ -548,6 +894,18 @@ if (process.env.NODE_ENV === 'development') {
 - [ ] Execute QA checklist
 - [ ] Document token reduction results
 - [ ] Create qa-checklist.md
+
+### Phase 05-b: Cross-Language Fix
+- [ ] Refactor `getRelevantWorldBookEntries()` to semantic-first
+- [ ] Extract `hasKeywordMatchInEntry()` helper
+- [ ] Extract `getKeywordMatches()` helper
+- [ ] Add keyword boost logic (+0.1)
+- [ ] Add debug logging for retrieval mode
+- [ ] Create cross-language test suite
+- [ ] Test Vietnamese + English scenarios
+- [ ] Test English + Vietnamese scenarios
+- [ ] Benchmark performance (target: <50ms for 100 entries)
+- [ ] Update documentation with multilingual support
 
 ## Success Criteria
 

@@ -17,7 +17,7 @@ Transform worldbook injection from "all-matching" to "relevance-ranked" with hyb
 | 02 | [Worldbook Editor UI](./phase-02-editor-ui.md) | P0 | None | ✅ Complete (Review Issues) | [Report](./reports/code-reviewer-251208-worldbook-phase01-phase02.md) |
 | 03 | [Hybrid Retrieval Integration](./phase-03-hybrid-retrieval.md) | P0 | Phase 01 | ✅ Complete | Tests 35/35 passed |
 | 04 | [Global Worldbooks](./phase-04-global-worldbooks.md) | P1 | Phase 02 | ✅ Complete (2025-12-09 14:30) | [Report](./reports/phase-04-completion-report.md) |
-| 05 | [Testing + Migration](./phase-05-testing-migration.md) | P0 | All | ✅ READY (2025-12-09) | Phase 01-04 complete, no blockers |
+| 05 | [Testing + Migration](./phase-05-testing-migration.md) | P0 | All | ✅ READY (2025-12-09) | Includes Phase 05-b: Cross-Language Fix |
 
 **Parallel Execution:** Phase 01 and Phase 02 can run concurrently.
 
