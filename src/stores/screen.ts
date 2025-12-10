@@ -8,6 +8,7 @@ import PresetConfig from '@/components/PresetConfig.vue'
 import ProfileList from '@/components/profiles/ProfileList.vue'
 import WorldbookEditor from '@/components/worldbook/WorldbookEditor.vue'
 import GlobalWorldbookManager from '@/components/worldbook/GlobalWorldbookManager.vue'
+import TokenStatsDashboard from '@/components/token_stats/TokenStatsDashboard.vue'
 
 export const useScreenStore = defineStore('screen', {
   state: () => ({
@@ -40,6 +41,8 @@ export const useScreenStore = defineStore('screen', {
           return WorldbookEditor;
         case SCREENS.GLOBAL_WORLDBOOK_MANAGER:
           return GlobalWorldbookManager;
+        case SCREENS.TOKEN_STATISTICS:
+          return TokenStatsDashboard;
         default:
           return ProfileList;
       }

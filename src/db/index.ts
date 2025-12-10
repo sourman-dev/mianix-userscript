@@ -4,6 +4,7 @@ import vueReactivityAdapter from "@signaldb/vue";
 import createMonkeyAdapter from "./monkey";
 import { CharacterCardData, GlobalWorldbookType } from "@/types/character";
 import { mergeObjects } from "@/utils/common";
+import type { TokenUsageStats, DailyTokenStats, WeeklyTokenStats, MonthlyTokenStats } from "@/types/token-stats";
 
 export type ModelType = 'chat' | 'embedding' | 'extraction';
 
@@ -146,7 +147,8 @@ export type DialogueMessageType = {
   parentId: string | null;
   userInput: string;
   assistantResponse: string;
-  status?: "pending" | "completed" | "failed"; // <-- THÊM FIELD MỚI
+  status?: "pending" | "completed" | "failed";
+  tokenStats?: TokenUsageStats; // Token usage statistics (optional for backward compat)
   createdAt: number;
 };
 export type DialogType = {
@@ -187,7 +189,8 @@ export class DialogueMessage {
   parentId: string | null;
   userInput: string;
   assistantResponse: string;
-  status?: "pending" | "completed" | "failed"; // <-- THÊM PROPERTY
+  status?: "pending" | "completed" | "failed";
+  tokenStats?: TokenUsageStats; // Token usage statistics
   createdAt: number;
 
   constructor(data: DialogueMessageType) {
@@ -197,6 +200,7 @@ export class DialogueMessage {
     this.parentId = data.parentId;
     this.userInput = data.userInput;
     this.assistantResponse = data.assistantResponse;
+    this.tokenStats = data.tokenStats;
     this.status = data.status || "pending"; // <-- THÊM VÀO CONSTRUCTOR
     this.createdAt = data.createdAt;
   }
@@ -287,6 +291,28 @@ const GlobalWorldbooks = new Collection<GlobalWorldbookType>({
   primaryKeyGenerator: () => crypto.randomUUID(),
 });
 
+// Token statistics collections for pre-aggregated data
+const DailyTokenStats = new Collection<DailyTokenStats>({
+  name: "Daily_Token_Stats",
+  reactivity: vueReactivityAdapter,
+  persistence: createIndexedDBAdapter("Daily_Token_Stats"),
+  // primaryKeyGenerator not needed - uses characterId-YYYY-MM-DD format
+});
+
+const WeeklyTokenStats = new Collection<WeeklyTokenStats>({
+  name: "Weekly_Token_Stats",
+  reactivity: vueReactivityAdapter,
+  persistence: createIndexedDBAdapter("Weekly_Token_Stats"),
+  // primaryKeyGenerator not needed - uses characterId-YYYY-Www format
+});
+
+const MonthlyTokenStats = new Collection<MonthlyTokenStats>({
+  name: "Monthly_Token_Stats",
+  reactivity: vueReactivityAdapter,
+  persistence: createIndexedDBAdapter("Monthly_Token_Stats"),
+  // primaryKeyGenerator not needed - uses characterId-YYYY-MM format
+});
+
 // Initialize default profile for first-time users
 // IMPORTANT: Wrap in setTimeout to wait for minimongo to load from storage
 setTimeout(() => {
@@ -317,4 +343,7 @@ export const db = {
   UserProfiles,
   Memories,
   GlobalWorldbooks,
+  DailyTokenStats,
+  WeeklyTokenStats,
+  MonthlyTokenStats,
 };

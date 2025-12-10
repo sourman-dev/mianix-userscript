@@ -1,7 +1,10 @@
 <template>
-    <Menu ref="menu" :model="menuItems" :popup="true" class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg" v-if="menuItems.length > 0">
+    <Menu ref="menu" :model="menuItems" :popup="true"
+        class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg"
+        v-if="menuItems.length > 0">
         <template #item="{ item }">
-            <a v-ripple class="flex items-center px-4 py-3 text-sm cursor-pointer text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200 rounded-md mx-1 my-0.5">
+            <a v-ripple
+                class="flex items-center px-4 py-3 text-sm cursor-pointer text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200 rounded-md mx-1 my-0.5">
                 {{ item.label }}
             </a>
         </template>
@@ -49,8 +52,8 @@ const menuItems = [
         command: () => screenStore.setScreen(SCREENS.MODELS_LIST),
     },
     {
-        label: t('nav.presets'),
-        command: () => screenStore.setScreen(SCREENS.PRESETS_CONFIG),
-    },
+        label: t('nav.token_statistics'),
+        command: () => screenStore.setScreen(SCREENS.TOKEN_STATISTICS),
+    }
 ];
 </script>

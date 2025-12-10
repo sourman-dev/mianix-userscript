@@ -4,6 +4,9 @@
  * For providers without CORS, use llm.ts (GM.xmlHttpRequest)
  */
 
+import type { TokenUsageStats } from '@/types/token-stats';
+import { TokenTrackingService } from '@/services/token-tracking-service';
+
 export interface OpenAIRequest {
   model: string;
   messages: { role: string; content: string }[];
@@ -18,6 +21,12 @@ export interface OpenAIOptions {
   apiKey: string;
   data: OpenAIRequest;
   stream?: boolean;
+  provider?: string; // Provider name for token tracking (e.g., "openai", "anthropic")
+}
+
+export interface LLMResponse {
+  content: string;
+  tokenStats?: TokenUsageStats | null;
 }
 
 /**
@@ -26,7 +35,7 @@ export interface OpenAIOptions {
 export async function sendOpenAiRequestFetch(
   options: OpenAIOptions,
   onChunk?: (chunk: string) => void
-): Promise<string | void> {
+): Promise<string | LLMResponse | void> {
   const isStreaming = options.stream === true && onChunk !== undefined;
   const requestData = { ...options.data, stream: isStreaming };
   
@@ -53,18 +62,29 @@ export async function sendOpenAiRequestFetch(
     // --- Non-streaming mode ---
     if (!isStreaming) {
       const data = await response.json();
-      
+
       if (!data) {
         console.error("❌ LLM Response is null/undefined");
         return '';
       }
-      
+
       if (data.error) {
         console.error("❌ LLM API Error:", data.error);
         return '';
       }
 
-      return data?.choices?.[0]?.message?.content || '';
+      const content = data?.choices?.[0]?.message?.content || '';
+
+      // Extract token usage statistics
+      const provider = (options.provider || 'UNKNOWN').toUpperCase();
+      const model = options.data.model;
+      const tokenStats = TokenTrackingService.extractTokenUsage(data, model, provider);
+
+      // Return response with token stats
+      return {
+        content,
+        tokenStats
+      };
     }
 
     // --- Streaming mode ---
@@ -79,12 +99,29 @@ export async function sendOpenAiRequestFetch(
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let lastChunkData: any = null; // Store last chunk for token extraction
 
     while (true) {
       const { done, value } = await reader.read();
       
       if (done) {
         console.log("✅ Fetch stream finished successfully");
+
+        // Extract token stats from last chunk (if available)
+        if (lastChunkData) {
+          const provider = (options.provider || 'UNKNOWN').toUpperCase();
+          const model = options.data.model;
+          const tokenStats = TokenTrackingService.extractTokenUsageFromStream(
+            lastChunkData,
+            model,
+            provider
+          );
+
+          if (tokenStats) {
+            console.log('💰 Token stats from stream:', TokenTrackingService.formatTokenStats(tokenStats));
+          }
+        }
+
         break;
       }
 
@@ -109,7 +146,10 @@ export async function sendOpenAiRequestFetch(
           try {
             const data = JSON.parse(jsonStr);
             const content = data?.choices?.[0]?.delta?.content;
-            
+
+            // Store for token extraction at end
+            lastChunkData = data;
+
             if (content) {
               onChunk(content);
             }
@@ -134,9 +174,9 @@ export async function sendOpenAiRequestFetch(
  */
 export async function sendOpenAiRequestFetchSync(
   options: Omit<OpenAIOptions, 'stream'>
-): Promise<string> {
+): Promise<LLMResponse> {
   const result = await sendOpenAiRequestFetch({ ...options, stream: false });
-  return result as string;
+  return result as LLMResponse;
 }
 
 /**

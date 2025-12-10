@@ -7,6 +7,7 @@ export const SCREENS = {
   PRESETS_CONFIG: "preset-config",
   WORLDBOOK_EDITOR: "worldbook-editor",
   GLOBAL_WORLDBOOK_MANAGER: "global-worldbook-manager",
+  TOKEN_STATISTICS: "token-statistics",
 };
 
 export const MODALS = {

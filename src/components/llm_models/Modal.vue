@@ -14,6 +14,7 @@ import { useModalStore } from '@/stores/modal'
 import { useResourcesStore } from '@/stores/resources'
 import { sendOpenAiRequestSync } from '@/utils/llm'
 import { MODALS } from '@/constants'
+import { PROVIDER_OPTIONS, PROVIDER_BASE_URLS } from '@/constants/providers'
 
 // const MODAL_NAME = MODALS.LLM_MODEL
 
@@ -52,60 +53,63 @@ const modelTypeOptions = [
 
 // 🆕 Function to detect provider from base URL
 const detectProviderFromUrl = (url: string): string => {
-  if (!url) return 'Custom'
+  if (!url) return 'UNKNOWN'
 
   const lowerUrl = url.toLowerCase()
 
   // OpenAI
-  if (lowerUrl.includes('api.openai.com')) return 'OpenAI'
+  if (lowerUrl.includes('api.openai.com')) return 'OPENAI'
 
   // Anthropic (Claude)
-  if (lowerUrl.includes('api.anthropic.com')) return 'Anthropic'
+  if (lowerUrl.includes('api.anthropic.com')) return 'ANTHROPIC'
 
   // Google (Gemini)
-  if (lowerUrl.includes('generativelanguage.googleapis.com')) return 'Google'
+  if (lowerUrl.includes('generativelanguage.googleapis.com')) return 'GOOGLE'
 
   // Groq
-  if (lowerUrl.includes('api.groq.com')) return 'Groq'
+  if (lowerUrl.includes('api.groq.com')) return 'GROQ'
 
   // Together AI
-  if (lowerUrl.includes('api.together.xyz')) return 'Together AI'
+  if (lowerUrl.includes('api.together.xyz')) return 'TOGETHER'
 
-  // Ollama (local)
+  // Ollama (local) - mark as UNKNOWN
   if (lowerUrl.includes('localhost:11434') || lowerUrl.includes('127.0.0.1:11434')) {
-    return 'Ollama'
+    return 'UNKNOWN'
   }
 
-  // LM Studio (local)
+  // LM Studio (local) - mark as UNKNOWN
   if (lowerUrl.includes('localhost:1234') || lowerUrl.includes('127.0.0.1:1234')) {
-    return 'LM Studio'
+    return 'UNKNOWN'
   }
 
   // Perplexity
-  if (lowerUrl.includes('api.perplexity.ai')) return 'Perplexity'
+  if (lowerUrl.includes('api.perplexity.ai')) return 'PERPLEXITY'
 
   // Mistral
-  if (lowerUrl.includes('api.mistral.ai')) return 'Mistral'
+  if (lowerUrl.includes('api.mistral.ai')) return 'MISTRAL'
 
   // Cohere
-  if (lowerUrl.includes('api.cohere.ai')) return 'Cohere'
+  if (lowerUrl.includes('api.cohere.ai')) return 'COHERE'
 
-  return 'Custom'
+  return 'UNKNOWN'
 }
 
-// 🆕 Watch baseUrl to auto-detect provider
-const isAutoDetecting = ref(false)
+// 🆕 Watch llmProvider to auto-fill baseURL
+watch(llmProvider, (newProvider) => {
+  if (newProvider && !isSettingFromModal.value && PROVIDER_BASE_URLS[newProvider]) {
+    baseUrl.value = PROVIDER_BASE_URLS[newProvider];
+  }
+});
+
+// 🆕 Watch baseUrl to auto-detect provider (keep for reverse direction)
 watch(baseUrl, (newBaseUrl) => {
   if (newBaseUrl && !isSettingFromModal.value) {
-    isAutoDetecting.value = true
-    const detectedProvider = detectProviderFromUrl(newBaseUrl)
-    llmProvider.value = detectedProvider
-    // Reset flag sau khi Vue update xong
-    nextTick(() => {
-      isAutoDetecting.value = false
-    })
+    const detectedProvider = detectProviderFromUrl(newBaseUrl);
+    if (detectedProvider !== llmProvider.value) {
+      llmProvider.value = detectedProvider;
+    }
   }
-})
+});
 
 // Set default provider and baseUrl on mount
 onMounted(() => {
@@ -115,7 +119,7 @@ onMounted(() => {
 // Watch for llmProvider changes to auto-fill baseUrl and update selectedProvider
 watch(llmProvider, (newProvider) => {
   if (isSettingFromModal.value) return // Skip if setting from modal data
-  if (isAutoDetecting.value) return // 🔧 Skip if auto-detecting from baseUrl
+
 
   if (newProvider && llmProviders_NameAndBaseUrl.value) {
     const foundProvider = llmProviders_NameAndBaseUrl.value.find(provider => provider.name === newProvider)
@@ -371,13 +375,17 @@ async function saveModel() {
     :breakpoints="{ '1199px': '75vw', '575px': '90vw' }">
     <div class="flex flex-col gap-4 p-4">
       <IftaLabel>
-        <InputText v-model="llmProvider" inputId="llmProvider" class="w-full"
-          placeholder="Tự động detect từ Base URL" />
+        <Select v-model="llmProvider" :options="PROVIDER_OPTIONS" optionLabel="label" optionValue="value"
+          inputId="llmProvider" class="w-full" />
         <label for="llmProvider">LLM Provider</label>
       </IftaLabel>
-      <small v-if="llmProvider && llmProvider !== 'Custom'" class="text-blue-500 -mt-3">
+      <small v-if="llmProvider && llmProvider !== 'UNKNOWN'" class="text-blue-500 -mt-3">
         <i class="pi pi-info-circle mr-1"></i>
-        Auto-detected: {{ llmProvider }}
+        Selected provider: {{ llmProvider }}
+      </small>
+      <small v-else-if="llmProvider === 'UNKNOWN'" class="text-orange-500 -mt-3">
+        <i class="pi pi-exclamation-triangle mr-1"></i>
+        Unknown provider: Token count only, no cost estimation
       </small>
 
       <IftaLabel>
@@ -390,6 +398,15 @@ async function saveModel() {
         <InputText v-model="baseUrl" inputId="baseUrl" class="w-full" />
         <label for="baseUrl">Base URL</label>
       </IftaLabel>
+      <small v-if="llmProvider && llmProvider !== 'UNKNOWN' && PROVIDER_BASE_URLS[llmProvider]"
+        class="text-green-600 -mt-3">
+        <i class="pi pi-check-circle mr-1"></i>
+        Auto-filled from {{ llmProvider }} provider
+      </small>
+      <small v-else-if="llmProvider === 'UNKNOWN'" class="text-gray-500 -mt-3">
+        <i class="pi pi-pencil mr-1"></i>
+        Please enter Base URL manually for custom provider
+      </small>
 
       <div class="flex gap-2 items-start">
         <IftaLabel class="flex-1">

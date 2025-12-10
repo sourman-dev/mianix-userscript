@@ -63,6 +63,10 @@
                         <div
                             class="p-3 sm:p-4 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 max-w-lg shadow-md message-bubble">
                             <p v-html="formatMessage(node.assistantResponse)" class="whitespace-pre-wrap"></p>
+
+                            <!-- Token statistics display -->
+                            <TokenStatsDisplay :token-stats="node.tokenStats" />
+
                             <MessageButtons :role="'assistant'" :messageId="node.id"
                                 :latestMessageId="dialogueStore.currentDialogue?.currentNodeId" :status="node.status"
                                 @button-click="handleMessageButtonClick" />
@@ -133,6 +137,7 @@ import Button from 'primevue/button';
 import Textarea from 'primevue/textarea';
 import CharacterAvatar from '@/components/character_cards/CharacterAvatar.vue';
 import MessageButtons from './MessageButtons.vue';
+import TokenStatsDisplay from '@/components/token_stats/TokenStatsDisplay.vue';
 import EditMessageModal from './EditMessageModal.vue';
 import ExtractorCharacterModal from './ExtractorCharacterModal.vue';
 import { useScreenStore } from '@/stores/screen';

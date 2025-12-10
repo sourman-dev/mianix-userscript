@@ -31,6 +31,8 @@ declare module 'vue' {
     SaveButton: typeof import('./src/components/common/SaveButton.vue')['default']
     SelectButton: typeof import('primevue/selectbutton')['default']
     SplitButton: typeof import('primevue/splitbutton')['default']
+    TokenStatsDashboard: typeof import('./src/components/token_stats/TokenStatsDashboard.vue')['default']
+    TokenStatsDisplay: typeof import('./src/components/token_stats/TokenStatsDisplay.vue')['default']
     Translate: typeof import('./src/components/character_cards/Translate.vue')['default']
     WorldbookEditor: typeof import('./src/components/worldbook/WorldbookEditor.vue')['default']
     WorldbookEntryForm: typeof import('./src/components/worldbook/WorldbookEntryForm.vue')['default']

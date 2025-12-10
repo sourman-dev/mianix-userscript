@@ -11,6 +11,8 @@ import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 import './style.css';   // <-- Import file style chung
 import { i18n } from "./i18n";
 import { useAppStore } from "./stores/app";
+import { PricingService } from "./services/pricing-service";
+import { ExchangeRateService } from "./services/exchange-rate-service";
 
 const appDiv = document.createElement("div");
 document.body.appendChild(appDiv);
@@ -22,6 +24,10 @@ app.use(pinia);
 // Set app to ready. The persisted state is loaded automatically.
 const appStore = useAppStore();
 appStore.setReady(true);
+
+// Initialize pricing and exchange rate services (async, non-blocking)
+PricingService.init().catch(err => console.error('❌ PricingService init failed:', err));
+ExchangeRateService.init().catch(err => console.error('❌ ExchangeRateService init failed:', err));
 
 app.use(i18n);
 app.use(PrimeVue, {

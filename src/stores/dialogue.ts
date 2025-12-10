@@ -6,6 +6,8 @@ import {
   type Dialogue,
   type DialogueMessageType,
 } from "@/db";
+import type { TokenUsageStats } from "@/types/token-stats";
+import { useTokenStatsStore } from "@/stores/token-stats";
 import { adaptText } from "@/utils/msg-process";
 import { MemoryService } from "@/services/memory-service"; // Import mới
 import { getEmbeddingModel, getExtractionModel } from "@/utils/model-helpers";
@@ -208,7 +210,7 @@ export const useDialogueStore = defineStore("dialogue", {
     },
 
     // Thêm một node mới vào cây
-    addMessage(userInput: string, assistantResponse: string) {
+    addMessage(userInput: string, assistantResponse: string, tokenStats?: TokenUsageStats | null) {
       if (!this.currentDialogue) return;
 
       const newNode: DialogueMessageType = {
@@ -217,6 +219,7 @@ export const useDialogueStore = defineStore("dialogue", {
         parentId: this.currentDialogue.currentNodeId,
         userInput,
         assistantResponse,
+        tokenStats, // 🆕 Add token stats
         createdAt: Date.now(),
       };
 
@@ -369,21 +372,25 @@ export const useDialogueStore = defineStore("dialogue", {
     },
 
     // 🆕 Action mới: Cập nhật AI response
-    updateAIResponse(nodeId: string, assistantResponse: string) {
+    async updateAIResponse(nodeId: string, assistantResponse: string, tokenStats?: TokenUsageStats | null) {
       if (!this.currentDialogue) return;
 
       console.log("🔄 Updating AI response for node:", nodeId);
 
       // Update trong database
-      db.DialogueMessages.updateOne(
-        { id: nodeId },
-        {
-          $set: {
-            assistantResponse,
-            status: "completed",
-          },
-        }
-      );
+      const updateData: any = {
+        $set: {
+          assistantResponse,
+          status: "completed",
+        },
+      };
+
+      // Add tokenStats if provided
+      if (tokenStats) {
+        updateData.$set.tokenStats = tokenStats;
+      }
+
+      db.DialogueMessages.updateOne({ id: nodeId }, updateData);
 
       // Update trong state
       const messageIndex = this.currentMessages.findIndex(
@@ -393,6 +400,16 @@ export const useDialogueStore = defineStore("dialogue", {
         this.currentMessages[messageIndex].assistantResponse =
           assistantResponse;
         this.currentMessages[messageIndex].status = "completed";
+        if (tokenStats) {
+          this.currentMessages[messageIndex].tokenStats = tokenStats;
+        }
+      }
+
+      // 🆕 Auto-record token usage to aggregation store
+      if (tokenStats) {
+        const tokenStatsStore = useTokenStatsStore();
+        await tokenStatsStore.recordUsage(this.currentDialogue.id, tokenStats);
+        console.log('💰 Token usage recorded:', tokenStats);
       }
 
       console.log("✅ AI response updated");

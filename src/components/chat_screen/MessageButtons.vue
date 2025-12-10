@@ -2,39 +2,21 @@
 <template>
   <div class="flex justify-end">
     <!-- Nút Pencil -->
-    <Button
-      icon="pi pi-pencil"
-      severity="secondary"
-      text rounded size="small"
-      @click="emitClick('edit')"
-      v-tooltip.top="'Chỉnh sửa'"
-      :disabled="isDisabled"
-    />
-    
+    <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="emitClick('edit')"
+      v-tooltip.top="'Chỉnh sửa'" :disabled="isDisabled" />
+
     <!-- Nút Replay (chỉ cho assistant) -->
-    <Button
-      icon="pi pi-replay"
-      severity="secondary"
-      text rounded size="small"
-      @click="emitClick('replay')"
-      v-tooltip.top="'Tạo lại'"
-      :disabled="isDisabled"
-    />
-    
+    <Button icon="pi pi-replay" severity="secondary" text rounded size="small" @click="emitClick('replay')"
+      v-tooltip.top="'Tạo lại'" :disabled="isDisabled" />
+
     <!-- Nút Delete -->
-    <Button
-      icon="pi pi-trash"
-      severity="danger"
-      text rounded size="small"
-      @click="emitClick('delete')"
-      v-tooltip.top="'Xoá'"
-      :disabled="isDisabled"
-    />
+    <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="emitClick('delete')"
+      v-tooltip.top="'Xoá'" :disabled="isDisabled" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { defineProps, defineEmits, computed } from 'vue'
+import { computed } from 'vue'
 import Button from 'primevue/button';
 
 // onMounted(() => {
@@ -49,7 +31,7 @@ const props = defineProps({
 })
 
 const isDisabled = computed(() => {
-    return props.messageId !== props.latestMessageId
+  return props.messageId !== props.latestMessageId
 })
 
 const emit = defineEmits(['button-click'])

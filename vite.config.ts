@@ -21,7 +21,7 @@ export default defineConfig({
       entry: 'src/main.ts',
       userscript: {
         name: 'Mianix RoleplayAI',
-        version: '0.1.3', // Tăng phiên bản để Tampermonkey cập nhật
+        version: '0.1.5', // Tăng phiên bản để Tampermonkey cập nhật
         icon: 'https://mianix.sourman.dev/logo.png',
         namespace: 'sourman.dev/mianix',
         match: ['https://mianix.sourman.dev/roleplay'],

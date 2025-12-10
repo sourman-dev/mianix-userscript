@@ -26,8 +26,15 @@ const character = computed(() => {
 });
 
 const alternateGreetings = computed(() => {
-    if (!character.value?.data?.alternateGreetings) return [];
-    return character.value.data.alternateGreetings;
+    const data = [character.value?.isUseTranslated ? character.value?.dataTranslated?.firstMessage : character.value?.data?.firstMessage]
+    if (!character.value?.isUseTranslated) {
+        if (!character.value?.data?.alternateGreetings) return [];
+        data.push(...character.value.data.alternateGreetings);
+    } else {
+        if (!character.value?.dataTranslated?.alternateGreetings) return [];
+        data.push(...character.value.dataTranslated.alternateGreetings);
+    }
+    return data;
 });
 
 const hasAlternateGreetings = computed(() => alternateGreetings.value.length > 0);
@@ -36,12 +43,14 @@ const hasAlternateGreetings = computed(() => alternateGreetings.value.length > 0
 const selectedGreetingIndex = ref<number>(-1); // -1 = Random
 
 const greetingOptions = computed(() => {
-    const options = [{ label: '🎲 Random', value: -1 }];
+    const options = [
+        { label: '🎲 Random', value: -1 },
+    ];
 
-    alternateGreetings.value.forEach((greeting, index) => {
-        const truncated = greeting.length > 50
-            ? greeting.substring(0, 50) + '...'
-            : greeting;
+    alternateGreetings.value.filter((greeting) => greeting).forEach((greeting, index) => {
+        const truncated = greeting!.length > 20
+            ? greeting!.substring(0, 20) + '...'
+            : greeting!;
         options.push({ label: truncated, value: index });
     });
 
@@ -50,8 +59,8 @@ const greetingOptions = computed(() => {
 
 const selectedGreetingPreview = computed(() => {
     if (selectedGreetingIndex.value === -1) {
-        // Random - show firstMessage if available
-        return character.value?.data?.firstMessage || 'Random greeting will be selected';
+        const options = alternateGreetings.value.filter(o => o).map(o => o);
+        return options[Math.floor(Math.random() * options.length)] || 'Random greeting will be selected';
     }
     return alternateGreetings.value[selectedGreetingIndex.value] || '';
 });
@@ -120,23 +129,10 @@ function closeModal() {
                 <label for="greeting-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Chọn lời chào đầu tiên:
                 </label>
-                <Select
-                    id="greeting-select"
-                    v-model="selectedGreetingIndex"
-                    :options="greetingOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    placeholder="Chọn greeting"
-                    class="w-full mb-3"
-                />
-                <Textarea
-                    v-model="selectedGreetingPreview"
-                    readonly
-                    :autoResize="false"
-                    rows="4"
-                    class="w-full max-h-24 overflow-y-auto"
-                    placeholder="Preview greeting..."
-                />
+                <Select id="greeting-select" v-model="selectedGreetingIndex" :options="greetingOptions"
+                    optionLabel="label" optionValue="value" placeholder="Chọn greeting" class="w-full mb-3" />
+                <Textarea :value="selectedGreetingPreview" readonly :autoResize="false" rows="4"
+                    class="w-full max-h-24 overflow-y-auto" placeholder="Preview greeting..." />
             </div>
 
             <!-- Empty State -->
@@ -155,37 +151,19 @@ function closeModal() {
                 <label for="profile-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Chọn Profile:
                 </label>
-                <Select
-                    id="profile-select"
-                    v-model="selectedProfileId"
-                    :options="profileOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    placeholder="Chọn profile"
-                    class="w-full mb-3"
-                />
-                <Textarea
-                    v-model="selectedProfilePreview"
-                    readonly
-                    :autoResize="false"
-                    rows="4"
-                    class="w-full max-h-24 overflow-y-auto"
-                    placeholder="Preview profile..."
-                />
+                <Select id="profile-select" v-model="selectedProfileId" :options="profileOptions" optionLabel="label"
+                    optionValue="value" placeholder="Chọn profile" class="w-full mb-3" />
+                <Textarea v-model="selectedProfilePreview" readonly :autoResize="false" rows="4"
+                    class="w-full max-h-24 overflow-y-auto" placeholder="Preview profile..." />
             </div>
         </div>
 
         <template #footer>
             <div class="flex justify-end gap-2">
                 <Button @click="closeModal" label="Hủy" severity="secondary" outlined />
-                <Button
-                    v-if="profiles.length > 0"
-                    @click="confirmSelection"
-                    label="Xác nhận"
-                    :disabled="!selectedProfileId"
-                />
+                <Button v-if="profiles.length > 0" @click="confirmSelection" label="Xác nhận"
+                    :disabled="!selectedProfileId" />
             </div>
         </template>
     </Dialog>
 </template>
-

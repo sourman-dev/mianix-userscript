@@ -12,6 +12,7 @@ export const i18n = createI18n({
       'nav.global_worldbooks': 'Worldbooks toàn cục',
       'nav.llm_models': 'Models AI',
       'nav.presets': 'Lời nhắc',
+      'nav.token_statistics': 'Thống kê token',
       'llm_models.index.title': 'Quản lý LLM models',
       'llm_models.index.subtitle': 'Quản lý các Models AI được sử dụng',
       'llm_models.index.add': 'Thêm Model AI',

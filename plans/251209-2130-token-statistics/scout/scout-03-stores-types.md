@@ -1,0 +1,1 @@
+The output will be saved to /Users/uspro/Projects/mianix-userscript/plans/251209-2130-token-statistics/scout/scout-03-stores-types.md
