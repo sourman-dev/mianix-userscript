@@ -219,7 +219,7 @@ export const useDialogueStore = defineStore("dialogue", {
         parentId: this.currentDialogue.currentNodeId,
         userInput,
         assistantResponse,
-        tokenStats, // 🆕 Add token stats
+        tokenStats , // 🆕 Add token stats
         createdAt: Date.now(),
       };
 

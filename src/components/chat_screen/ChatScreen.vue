@@ -5,7 +5,8 @@
             class="flex-shrink-0 p-2 sm:p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
             <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div class="flex items-center self-start sm:self-center space-x-3 w-full">
-                    <CharacterAvatar v-if="imageFile" :src="imageFile" :is-circle="true" :is-nsfw="currentCharacter?.isNSFW" class="w-12 h-12" />
+                    <CharacterAvatar v-if="imageFile" :src="imageFile" :is-circle="true"
+                        :is-nsfw="currentCharacter?.isNSFW" class="w-12 h-12" />
                     <div>
                         <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ currentCharacter?.data?.name }}
                         </h1>
@@ -64,12 +65,13 @@
                             class="p-3 sm:p-4 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 max-w-lg shadow-md message-bubble">
                             <p v-html="formatMessage(node.assistantResponse)" class="whitespace-pre-wrap"></p>
 
-                            <!-- Token statistics display -->
-                            <TokenStatsDisplay :token-stats="node.tokenStats" />
-
-                            <MessageButtons :role="'assistant'" :messageId="node.id"
-                                :latestMessageId="dialogueStore.currentDialogue?.currentNodeId" :status="node.status"
-                                @button-click="handleMessageButtonClick" />
+                            <!-- Token stats (left) and message buttons (right) -->
+                            <div class="flex items-center justify-between mt-2">
+                                <TokenStatsDisplay :token-stats="node.tokenStats" />
+                                <MessageButtons :role="'assistant'" :messageId="node.id"
+                                    :latestMessageId="dialogueStore.currentDialogue?.currentNodeId" :status="node.status"
+                                    @button-click="handleMessageButtonClick" />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -145,6 +147,7 @@ import { useResourcesStore } from '@/stores/resources';
 import { useDialogueStore } from '@/stores/dialogue';
 import { useModalStore } from '@/stores/modal';
 import { CharacterCard, db, LLMModel, UserProfile } from '@/db';
+import type { TokenUsageStats } from '@/types/token-stats';
 import { formatMessageContent } from '@/utils/msg-process';
 import { buildFinalPrompt } from '@/utils/prompt-utils';
 import { OpenAIOptions } from '@/utils/llm';
@@ -236,10 +239,10 @@ const handleRemoveDialogue = () => {
     });
 };
 
-const sendRequestToLLM = async (promptMessage: string) => {
+const sendRequestToLLM = async (promptMessage: string): Promise<{response: string, tokenStats: TokenUsageStats | null}> => {
     try {
         currentLLMModel.value = db.LLMModels.findOne({ isDefault: true }) as LLMModel | null;
-        if (!currentLLMModel.value || !currentCharacter.value) return '';
+        if (!currentLLMModel.value || !currentCharacter.value) return {response: '', tokenStats: null};
         const llmOptions = dialogueStore.currentLLMOptions[currentCharacter.value.id];
 
         // 🆕 Lấy ký ức liên quan từ store (đã được chuẩn bị trước)
@@ -274,6 +277,7 @@ const sendRequestToLLM = async (promptMessage: string) => {
         console.info('Sending request to LLM with User Prompt \n:', userPrompt);
 
         const options: OpenAIOptions = {
+            provider: currentLLMModel.value.llmProvider,
             baseURL: currentLLMModel.value.baseUrl,
             apiKey: currentLLMModel.value.apiKey,
             data: {
@@ -288,16 +292,16 @@ const sendRequestToLLM = async (promptMessage: string) => {
             }
         };
 
-        await sendOpenAiRequestFetchStream(options, (chunk: string) => {
+        const tokenStats = await sendOpenAiRequestFetchStream(options, (chunk: string) => {
             llmResponse.value += chunk;
             scrollToBottom();
         });
 
         const finalResponse = llmResponse.value;
 
-        return finalResponse;
+        return {response: finalResponse, tokenStats};
     } catch (error) {
-
+        return {response: '', tokenStats: null};
     } finally {
         regeneratingInput.value = null;
         llmResponse.value = '';
@@ -306,7 +310,7 @@ const sendRequestToLLM = async (promptMessage: string) => {
 }
 
 // Thêm helper function này vào script setup
-const handleAIResponse = (aiResponseRaw: string, nodeId: string) => {
+const handleAIResponse = (aiResponseRaw: string, nodeId: string, tokenStats: TokenUsageStats | null = null) => {
     if (!aiResponseRaw) {
         dialogueStore.markAsFailed(nodeId);
         return;
@@ -322,7 +326,7 @@ const handleAIResponse = (aiResponseRaw: string, nodeId: string) => {
 
     // Chỉ lưu nội dung chính vào cây hội thoại
     if (parsed.mainContent) {
-        dialogueStore.updateAIResponse(nodeId, parsed.mainContent);
+        dialogueStore.updateAIResponse(nodeId, parsed.mainContent, tokenStats);
     } else {
         dialogueStore.markAsFailed(nodeId);
     }
@@ -348,9 +352,9 @@ const handleSendMessage = async () => {
 
     try {
         // 🆕 BƯỚC 2: Gửi request đến AI
-        const aiResponseRaw = await sendRequestToLLM(newUserInput);
+        const {response: aiResponseRaw, tokenStats} = await sendRequestToLLM(newUserInput);
         if (aiResponseRaw) {
-            handleAIResponse(aiResponseRaw, pendingNodeId);
+            handleAIResponse(aiResponseRaw, pendingNodeId, tokenStats);
 
             // 🆕 BƯỚC 3: Trích xuất ký ức từ cuộc hội thoại (chạy ngầm)
             dialogueStore.handlePostResponseProcess(newUserInput, aiResponseRaw, pendingNodeId);
@@ -398,9 +402,9 @@ async function handleMessageButtonClick({ buttonName, role, messageId }: { butto
                 // 🆕 Chuẩn bị context trước khi retry
                 await dialogueStore.prepareContext(userInput);
 
-                const aiResponseRaw = await sendRequestToLLM(userInput);
+                const {response: aiResponseRaw, tokenStats} = await sendRequestToLLM(userInput);
                 if (aiResponseRaw) {
-                    handleAIResponse(aiResponseRaw, messageId);
+                    handleAIResponse(aiResponseRaw, messageId, tokenStats);
 
                     // 🆕 Trích xuất ký ức sau khi retry thành công
                     dialogueStore.handlePostResponseProcess(userInput, aiResponseRaw, messageId);
@@ -435,6 +439,7 @@ onMounted(async () => {
 
             // Load profile từ dialogue (nếu có)
             const dialogue = dialogueStore.currentDialogue as any; // Type assertion for profileId
+            console.log('dialogue', dialogue);
             if (dialogue?.profileId) {
                 currentUser.value = db.UserProfiles.findOne({ id: dialogue.profileId }) as UserProfile | null;
                 console.log('✅ Loaded profile for dialogue:', currentUser.value?.name);

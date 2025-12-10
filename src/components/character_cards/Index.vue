@@ -37,8 +37,8 @@
               @click="handleToChat(characterCard.id)" />
             <Button icon="pi pi-language" severity="secondary" outlined rounded
               @click="handleCharacterEdit(characterCard.id)" aria-label="Edit" />
-            <Button icon="pi pi-book" severity="info" outlined rounded
-              @click="handleWorldbookEdit(characterCard.id)" aria-label="Worldbook" />
+            <Button icon="pi pi-book" severity="info" outlined rounded @click="handleWorldbookEdit(characterCard.id)"
+              aria-label="Worldbook" />
             <Button icon="pi pi-arrow-circle-down" severity="success" rounded
               @click="handleCharacterExport(characterCard.id)" aria-label="Export" />
             <Button icon="pi pi-trash" severity="danger" rounded @click="handleDelete(characterCard)"
@@ -67,10 +67,9 @@ import { textTruncate } from '@/utils/common';
 import { writeCharacterToPng } from '@/utils/character-parser';
 import { useDeleteConfirm } from '@/composables/useDeleteConfirm'
 import { Character } from '@/newDb/Character';
-import { db, CharacterCard, Dialogue, UserProfile } from '@/db';
+import { db, CharacterCard, Dialogue } from '@/db';
 import { useDialogueStore } from '@/stores/dialogue';
 import dayjs from 'dayjs';
-import { adaptText } from '@/utils/msg-process';
 import { deleteMemoriesForCharacter } from '@/utils/memory-cleanup'; // 🗑️ Memory cleanup
 const useScreen = useScreenStore();
 const useModal = useModalStore();
@@ -177,11 +176,11 @@ const handleToChat = (characterId: string) => {
 }
 
 // Handle khi user chọn profile từ ProfileSelectorModal
-const handleProfileSelected = async (profile: UserProfile, greetingIndex: number = -1) => {
+const handleProfileSelected = async (profileId: string, greeting: string) => {
   if (!pendingCharacterId.value) return;
 
   const characterId = pendingCharacterId.value;
-  console.log(`Creating dialogue for character ${characterId} with profile ${profile.name}, greetingIndex: ${greetingIndex}`);
+  console.log(`Creating dialogue for character ${characterId} with profile ${profileId}, greeting: ${greeting.substring(0, 50) + '...'}`);
 
   // Tạo first greeting message ID trước
   const firstMessageId = crypto.randomUUID();
@@ -191,7 +190,7 @@ const handleProfileSelected = async (profile: UserProfile, greetingIndex: number
     id: characterId,
     createdAt: Date.now(),
     currentNodeId: firstMessageId, // ← Trỏ đến first message
-    profileId: profile.id,
+    profileId: profileId,
     llmOptions: {
       temperature: 0.7,
       maxTokens: 1000,
@@ -199,33 +198,33 @@ const handleProfileSelected = async (profile: UserProfile, greetingIndex: number
     }
   });
 
-  // Tạo first greeting message
-  const characterCard = db.CharacterCards.findOne({ id: characterId }) as CharacterCard;
-  characterCard.getData();
+  // // Tạo first greeting message
+  // const characterCard = db.CharacterCards.findOne({ id: characterId }) as CharacterCard;
+  // characterCard.getData();
 
-  // Get greeting based on greetingIndex
-  let firstGreeting: string;
-  if (greetingIndex === -1) {
-    // Random greeting (default behavior)
-    firstGreeting = characterCard.getGreeting() as string;
-  } else {
-    // Use specific alternate greeting
-    const alternateGreetings = characterCard.data?.alternateGreetings || [];
-    firstGreeting = alternateGreetings[greetingIndex] || characterCard.data?.firstMessage || '';
-  }
+  // // Get greeting based on greetingIndex
+  // let firstGreeting: string;
+  // if (greetingIndex === -1) {
+  //   // Random greeting (default behavior)
+  //   firstGreeting = characterCard.getGreeting() as string;
+  // } else {
+  //   // Use specific alternate greeting
+  //   const alternateGreetings = characterCard.data?.alternateGreetings || [];
+  //   firstGreeting = alternateGreetings[greetingIndex] || characterCard.data?.firstMessage || '';
+  // }
 
-  firstGreeting = adaptText(firstGreeting);
+  // greeting = adaptText(greeting);
 
-  // Replace {{user}} with profile.name in firstGreeting
-  firstGreeting = firstGreeting.replace(/\{\{user\}\}/gi, profile.name);
-  firstGreeting = firstGreeting.replace(/\{user\}/gi, profile.name);
+  // // Replace {{user}} with profile.name in firstGreeting
+  // greeting = greeting.replace(/\{\{user\}\}/gi, profile.name);
+  // greeting = greeting.replace(/\{user\}/gi, profile.name);
 
   db.DialogueMessages.insert({
     id: firstMessageId, // ← Dùng ID đã tạo
     dialogueId: characterId, // ← Dùng characterId (dialogue ID)
     parentId: 'root',
     userInput: '',
-    assistantResponse: firstGreeting,
+    assistantResponse: greeting,
     status: 'completed',
     createdAt: Date.now(),
   });
@@ -233,8 +232,8 @@ const handleProfileSelected = async (profile: UserProfile, greetingIndex: number
   console.log('✅ Created dialogue and message:', {
     dialogueId: characterId,
     messageId: firstMessageId,
-    profileId: profile.id,
-    firstGreeting: firstGreeting.substring(0, 50) + '...'
+    profileId: profileId,
+    greeting: greeting.substring(0, 50) + '...'
   });
 
   // ⏰ Wait for insert to complete

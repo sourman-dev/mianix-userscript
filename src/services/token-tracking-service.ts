@@ -9,18 +9,6 @@ import { ExchangeRateService } from './exchange-rate-service';
  * Integrates with PricingService and ExchangeRateService
  */
 export class TokenTrackingService {
-  /**
-   * Clean model name by removing provider/org prefixes
-   * Examples:
-   * - "NOVITA/deepseek/deepseek-v3.2" → "deepseek/deepseek-v3.2"
-   * - "openai/gpt-4" → "gpt-4"
-   * - "gpt-4" → "gpt-4"
-   */
-  private static cleanModelName(model: string): string {
-    // Split by "/" and take the last part (actual model name)
-    const parts = model.split('/');
-    return parts[parts.length - 1];
-  }
 
   /**
    * Normalize model name to match Helicone API naming conventions

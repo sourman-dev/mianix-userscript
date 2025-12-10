@@ -7,6 +7,7 @@ import Dialog from 'primevue/dialog';
 import Button from 'primevue/button';
 import Select from 'primevue/select';
 import Textarea from 'primevue/textarea';
+import { adaptText } from '@/utils/msg-process';
 
 const props = defineProps<{
     characterId?: string;
@@ -95,16 +96,16 @@ watch(() => props.characterId, () => {
 
 // Emit selected profile and greeting index
 const emit = defineEmits<{
-    selectProfile: [profile: UserProfile, greetingIndex: number]
+    selectProfile: [profileId: string, greeting: string]
 }>();
 
 function confirmSelection() {
     if (!selectedProfileId.value) return;
-
     const profile = profiles.value.find(p => p.id === selectedProfileId.value);
     if (!profile) return;
-
-    emit('selectProfile', profile, selectedGreetingIndex.value);
+    let greeting = selectedGreetingPreview.value;
+    greeting = adaptText(greeting, profile.name);
+    emit('selectProfile', selectedProfileId.value, greeting);
     modalStore.closeModal();
 }
 

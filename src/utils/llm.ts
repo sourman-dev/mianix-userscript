@@ -17,6 +17,7 @@ export interface OpenAIRequest {
 // }
 
 export interface OpenAIOptions {
+  provider?: string;
   baseURL: string;
   apiKey: string;
   data: OpenAIRequest;

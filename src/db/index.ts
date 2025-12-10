@@ -148,7 +148,7 @@ export type DialogueMessageType = {
   userInput: string;
   assistantResponse: string;
   status?: "pending" | "completed" | "failed";
-  tokenStats?: TokenUsageStats; // Token usage statistics (optional for backward compat)
+  tokenStats?: TokenUsageStats | null; // Token usage statistics (optional, null if not available)
   createdAt: number;
 };
 export type DialogType = {
@@ -190,7 +190,7 @@ export class DialogueMessage {
   userInput: string;
   assistantResponse: string;
   status?: "pending" | "completed" | "failed";
-  tokenStats?: TokenUsageStats; // Token usage statistics
+  tokenStats?: TokenUsageStats | null; // Token usage statistics (nullable)
   createdAt: number;
 
   constructor(data: DialogueMessageType) {
@@ -209,6 +209,7 @@ export class DialogueMessage {
 export class Dialogue {
   id: string;
   createdAt: number;
+  profileId?: string; // ID của user profile được chọn cho dialogue này
   currentNodeId: string; // <-- THÊM VÀO: ID của node hiện tại trong cây
   llmOptions: LLMOptions;
   constructor(data: DialogType) {
@@ -217,6 +218,7 @@ export class Dialogue {
     // this.messages = data.messages || [];
     this.llmOptions = data.llmOptions;
     this.currentNodeId = data.currentNodeId || "root";
+    this.profileId = data.profileId;
   }
 }
 

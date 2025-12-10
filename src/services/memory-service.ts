@@ -108,6 +108,7 @@ Nếu không có thông tin quan trọng nào, trả về: []`;
 
     try {
       const response = await sendOpenAiRequestFetchSync({
+        provider: extractionModel.llmProvider,
         baseURL: extractionModel.baseUrl,
         apiKey: extractionModel.apiKey,
         data: {
@@ -119,7 +120,7 @@ Nếu không có thông tin quan trọng nào, trả về: []`;
       });
 
       // Xử lý response để lấy JSON
-      let jsonText = response.trim();
+      let jsonText = response.content.trim();
       
       console.log("🔍 Raw Extraction Response:", jsonText); // Debug log
 

@@ -35,7 +35,7 @@ export interface LLMResponse {
 export async function sendOpenAiRequestFetch(
   options: OpenAIOptions,
   onChunk?: (chunk: string) => void
-): Promise<string | LLMResponse | void> {
+): Promise<string | LLMResponse | TokenUsageStats | null | void> {
   const isStreaming = options.stream === true && onChunk !== undefined;
   const requestData = { ...options.data, stream: isStreaming };
   
@@ -101,9 +101,11 @@ export async function sendOpenAiRequestFetch(
     let buffer = '';
     let lastChunkData: any = null; // Store last chunk for token extraction
 
+    let finalTokenStats: TokenUsageStats | null = null;
+
     while (true) {
       const { done, value } = await reader.read();
-      
+
       if (done) {
         console.log("✅ Fetch stream finished successfully");
 
@@ -119,6 +121,7 @@ export async function sendOpenAiRequestFetch(
 
           if (tokenStats) {
             console.log('💰 Token stats from stream:', TokenTrackingService.formatTokenStats(tokenStats));
+            finalTokenStats = tokenStats; // Store for return
           }
         }
 
@@ -160,6 +163,9 @@ export async function sendOpenAiRequestFetch(
       }
     }
 
+    // Return token stats extracted from stream
+    return finalTokenStats;
+
   } catch (error) {
     console.error("❌ Fetch request failed:", error);
     if (onChunk) {
@@ -185,8 +191,9 @@ export async function sendOpenAiRequestFetchSync(
 export async function sendOpenAiRequestFetchStream(
   options: Omit<OpenAIOptions, 'stream'>,
   onChunk: (chunk: string) => void
-): Promise<void> {
-  await sendOpenAiRequestFetch({ ...options, stream: true }, onChunk);
+): Promise<TokenUsageStats | null> {
+  const result = await sendOpenAiRequestFetch({ ...options, stream: true }, onChunk);
+  return result as TokenUsageStats | null;
 }
 
 /**
